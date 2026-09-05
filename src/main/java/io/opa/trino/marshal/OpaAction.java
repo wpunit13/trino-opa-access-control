@@ -1,7 +1,5 @@
 package io.opa.trino.marshal;
 
-import java.util.List;
-
 /**
  * Canonical action strings and OPA data-document paths (ARCHITECTURE.md §5).
  */
@@ -10,7 +8,11 @@ public enum OpaAction
     SELECT_FROM_COLUMNS("SELECT_FROM_COLUMNS", PathKind.ALLOW),
     CREATE_TABLE("CREATE_TABLE", PathKind.ALLOW),
     GET_ROW_FILTERS("GET_ROW_FILTERS", PathKind.ROW_FILTERS),
-    GET_COLUMN_MASKS("GET_COLUMN_MASKS", PathKind.COLUMN_MASKS);
+    GET_COLUMN_MASKS("GET_COLUMN_MASKS", PathKind.COLUMN_MASKS),
+    FILTER_CATALOGS("FILTER_CATALOGS", PathKind.FILTER),
+    FILTER_SCHEMAS("FILTER_SCHEMAS", PathKind.FILTER),
+    FILTER_TABLES("FILTER_TABLES", PathKind.FILTER),
+    FILTER_COLUMNS("FILTER_COLUMNS", PathKind.FILTER);
 
     public enum PathKind { ALLOW, ROW_FILTERS, COLUMN_MASKS, FILTER }
 
@@ -33,7 +35,7 @@ public enum OpaAction
         return pathKind;
     }
 
-    public String path(String allowPath, String rowFiltersPath, String columnMasksPath, String filterPath)
+    public String pathFor(String allowPath, String rowFiltersPath, String columnMasksPath, String filterPath)
     {
         return switch (pathKind) {
             case ALLOW -> allowPath;
@@ -42,11 +44,4 @@ public enum OpaAction
             case FILTER -> filterPath;
         };
     }
-
-    /** Convenience overload used by the plugin. */
-    public String pathFor(String allowPath, String rowFiltersPath, String columnMasksPath)
-    {
-        return path(allowPath, rowFiltersPath, columnMasksPath, "/v1/data/trino/filter");
-    }
-
 }

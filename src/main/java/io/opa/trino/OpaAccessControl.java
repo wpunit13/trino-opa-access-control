@@ -86,7 +86,12 @@ public final class OpaAccessControl
     @Override
     public List<ViewExpression> getRowFilters(SystemSecurityContext context, CatalogSchemaTableName table)
     {
-        OpaRequestContext requestContext = toRequestContext(OpaAction.GET_ROW_FILTERS, context, table, null);
+        OpaRequestContext requestContext = toRequestContext(
+                OpaAction.GET_ROW_FILTERS, context,
+                table.getCatalogName(),
+                table.getSchemaTableName().getSchemaName(),
+                table.getSchemaTableName().getTableName(),
+                null);
         Map<String, Object> input = marshaller.marshal(requestContext, marshaller.newDecisionId());
         String key = cacheKey(input);
         boolean volatileDecision = decisionCache.isVolatileDecision(input);
@@ -124,7 +129,12 @@ public final class OpaAccessControl
     @Override
     public Optional<ViewExpression> getColumnMask(SystemSecurityContext context, CatalogSchemaTableName table, String columnName, Type type)
     {
-        OpaRequestContext requestContext = toRequestContext(OpaAction.GET_COLUMN_MASKS, context, table, List.of(columnName));
+        OpaRequestContext requestContext = toRequestContext(
+                OpaAction.GET_COLUMN_MASKS, context,
+                table.getCatalogName(),
+                table.getSchemaTableName().getSchemaName(),
+                table.getSchemaTableName().getTableName(),
+                List.of(columnName));
         Map<String, Object> input = marshaller.marshal(requestContext, marshaller.newDecisionId());
         String key = cacheKey(input);
         boolean volatileDecision = decisionCache.isVolatileDecision(input);
@@ -158,12 +168,100 @@ public final class OpaAccessControl
     }
 
     // ------------------------------------------------------------------
+    // Filtering methods (§3.2.D): bulk evaluation, one OPA call per invocation
+    // ------------------------------------------------------------------
+
+    @Override
+    public Set<String> filterCatalogs(SystemSecurityContext context, Set<String> catalogs)
+    {
+        List<String> allowed = evaluateFilter(OpaAction.FILTER_CATALOGS, context, null, null, null, sorted(catalogs));
+        return new java.util.HashSet<>(allowed);
+    }
+
+    @Override
+    public Set<String> filterSchemas(SystemSecurityContext context, String catalogName, Set<String> schemaNames)
+    {
+        List<String> allowed = evaluateFilter(OpaAction.FILTER_SCHEMAS, context, catalogName, null, null, sorted(schemaNames));
+        return new java.util.HashSet<>(allowed);
+    }
+
+    @Override
+    public Set<io.trino.spi.connector.SchemaTableName> filterTables(
+            SystemSecurityContext context, String catalogName, Set<io.trino.spi.connector.SchemaTableName> tableNames)
+    {
+        // Candidates are marshaled as "schema.table" strings and mapped back after the call.
+        List<String> candidates = tableNames.stream()
+                .map(name -> name.getSchemaName() + "." + name.getTableName())
+                .sorted()
+                .toList();
+        List<String> allowed = evaluateFilter(OpaAction.FILTER_TABLES, context, catalogName, null, null, candidates);
+        return allowed.stream()
+                .map(candidate -> {
+                    int dot = candidate.indexOf('.');
+                    if (dot <= 0 || dot == candidate.length() - 1) {
+                        throw failClosedGlobal(new RuntimeException("OPA filter result entry is not schema.table: " + candidate));
+                    }
+                    return new io.trino.spi.connector.SchemaTableName(candidate.substring(0, dot), candidate.substring(dot + 1));
+                })
+                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
+    }
+
+    @Override
+    public Set<String> filterColumns(
+            SystemSecurityContext context, CatalogSchemaTableName tableName, Set<String> columnNames)
+    {
+        List<String> allowed = evaluateFilter(
+                OpaAction.FILTER_COLUMNS, context,
+                tableName.getCatalogName(),
+                tableName.getSchemaTableName().getSchemaName(),
+                tableName.getSchemaTableName().getTableName(),
+                sorted(columnNames));
+        return new java.util.HashSet<>(allowed);
+    }
+
+    // ------------------------------------------------------------------
     // Decision plumbing
     // ------------------------------------------------------------------
 
+    /**
+     * Bulk filter evaluation (§3.2.D): the candidate list is marshaled into
+     * {@code input.resource.columns} and OPA returns the allow-listed subset in a
+     * SINGLE round-trip. Empty result = allow nothing; absent result = error →
+     * fail closed (§7).
+     */
+    private List<String> evaluateFilter(
+            OpaAction action, SystemSecurityContext context, String catalog, String schema, String table, List<String> candidates)
+    {
+        OpaRequestContext requestContext = toRequestContext(action, context, catalog, schema, table, candidates);
+        Map<String, Object> input = marshaller.marshal(requestContext, marshaller.newDecisionId());
+        String key = cacheKey(input);
+        boolean volatileDecision = decisionCache.isVolatileDecision(input);
+
+        Object cached = checkNegativeThenGet(key, volatileDecision);
+        if (cached instanceof List<?> list) {
+            return (List<String>) list;
+        }
+
+        List<String> allowed;
+        try {
+            JsonNode response = client.query(pathFor(action), input);
+            allowed = responseParser.parseFilterResult(response);
+        }
+        catch (RuntimeException e) {
+            throw failClosed(key, e);
+        }
+        decisionCache.put(key, allowed, volatileDecision);
+        return allowed;
+    }
+
     private boolean evaluateBoolean(OpaAction action, SystemSecurityContext context, CatalogSchemaTableName table, List<String> columns)
     {
-        OpaRequestContext requestContext = toRequestContext(action, context, table, columns);
+        OpaRequestContext requestContext = toRequestContext(
+                action, context,
+                table.getCatalogName(),
+                table.getSchemaTableName().getSchemaName(),
+                table.getSchemaTableName().getTableName(),
+                columns);
         Map<String, Object> input = marshaller.marshal(requestContext, marshaller.newDecisionId());
         String key = cacheKey(input);
         boolean volatileDecision = decisionCache.isVolatileDecision(input);
@@ -199,7 +297,7 @@ public final class OpaAccessControl
 
     private String pathFor(OpaAction action)
     {
-        return action.pathFor(config.getAllowPath(), config.getRowFiltersPath(), config.getColumnMasksPath());
+        return action.pathFor(config.getAllowPath(), config.getRowFiltersPath(), config.getColumnMasksPath(), config.getFilterPath());
     }
 
     private String cacheKey(Map<String, Object> input)
@@ -220,11 +318,19 @@ public final class OpaAccessControl
         return new AccessDeniedException(message);
     }
 
+    /** Fail-closed translation for failures that occur before a cache key exists. */
+    private AccessDeniedException failClosedGlobal(RuntimeException e)
+    {
+        String message = "OPA authorization failed (fail closed): " + e.getMessage();
+        return new AccessDeniedException(message);
+    }
+
     // ------------------------------------------------------------------
     // SPI → context mapping
     // ------------------------------------------------------------------
 
-    private OpaRequestContext toRequestContext(OpaAction action, SystemSecurityContext context, CatalogSchemaTableName table, List<String> columns)
+    private OpaRequestContext toRequestContext(
+            OpaAction action, SystemSecurityContext context, String catalog, String schema, String table, List<String> columns)
     {
         Map<String, List<String>> roles = new HashMap<>();
         roles.put("system", List.copyOf(context.getIdentity().getEnabledRoles()));
@@ -244,9 +350,9 @@ public final class OpaAccessControl
                 Optional.ofNullable(context.getQueryId()).map(Object::toString),
                 Optional.empty(),   // query type is not exposed by SystemSecurityContext
                 Map.of(),
-                table.getCatalogName(),
-                table.getSchemaTableName().getSchemaName(),
-                table.getSchemaTableName().getTableName(),
+                catalog,
+                schema,
+                table,
                 columns);
     }
 

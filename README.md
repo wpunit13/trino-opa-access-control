@@ -6,15 +6,18 @@ filtering, and column masking to Open Policy Agent (OPA). See
 [IMPLEMENTATION-NOTES.md](IMPLEMENTATION-NOTES.md) for the Milestone 1
 implementation report (pinned Trino version, assumptions, deviations).
 
-## Status — Milestone 1
+## Status — Milestones 1 & 2
 
 Implemented: config (fail-fast validation), Contract 1 marshaling, OPA HTTP
 client, Contract 2 response parsing + schema-version enforcement, Caffeine
 decision/negative caching with the canonical full-input cache key, structural
-SQL validation before any `ViewExpression` is built, and the SPI methods
+SQL validation before any `ViewExpression` is built, the SPI methods
 `checkCanSelectFromColumns`, `checkCanCreateTable`, `getRowFilters`,
-`getColumnMask`. All unimplemented SPI methods inherit the SPI default
-(deny/empty). Everything fails closed on any OPA error.
+`getColumnMask`, and the bulk-evaluating filter methods `filterCatalogs`,
+`filterSchemas`, `filterTables`, `filterColumns`. Resilience: retry-with-jitter
+and a hand-rolled circuit breaker (fail-fast while open) around OPA calls.
+All unimplemented SPI methods inherit the SPI default (deny/empty). Everything
+fails closed on any OPA error.
 
 ## Build & test
 

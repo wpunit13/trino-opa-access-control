@@ -49,22 +49,37 @@ public final class OpaResponseParser
     /** Row filters (§3.2.B): a list of SQL predicate strings; empty list = no filter. */
     public List<String> parseRowFilters(JsonNode root)
     {
+        return parseStringList(root, "row_filters");
+    }
+
+    /**
+     * Filtering methods (§3.2.D): a list of allow-listed candidate names.
+     * Empty list = allow nothing. An absent/missing result is an ERROR → fail closed
+     * (distinct from the boolean contract, where an absent result is a deny).
+     */
+    public List<String> parseFilterResult(JsonNode root)
+    {
+        return parseStringList(root, "filter");
+    }
+
+    private List<String> parseStringList(JsonNode root, String contractName)
+    {
         JsonNode result = unwrap(root).get("result");
         if (result == null || result.isNull()) {
             // An absent result on a list contract is an error, not "no filters" (§3.2.D).
-            throw new OpaResponseException("OPA row_filters response is missing 'result'");
+            throw new OpaResponseException("OPA " + contractName + " response is missing 'result'");
         }
         if (!result.isArray()) {
-            throw new OpaResponseException("OPA row_filters 'result' must be an array");
+            throw new OpaResponseException("OPA " + contractName + " 'result' must be an array");
         }
-        List<String> filters = new ArrayList<>();
+        List<String> values = new ArrayList<>();
         for (JsonNode item : result) {
             if (!item.isTextual()) {
-                throw new OpaResponseException("OPA row_filters entries must be strings");
+                throw new OpaResponseException("OPA " + contractName + " entries must be strings");
             }
-            filters.add(item.asText());
+            values.add(item.asText());
         }
-        return filters;
+        return values;
     }
 
     /**

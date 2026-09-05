@@ -70,11 +70,15 @@ public final class OpaAccessControlFactory
         OpaConfig config = configurationFactory.build(OpaConfig.class);
         config.validate();
 
+        io.opa.trino.client.CircuitBreaker circuitBreaker = new io.opa.trino.client.CircuitBreaker(
+                config.getCircuitBreakerFailureThreshold(),
+                config.getCircuitBreakerOpenDurationMs());
         OpaHttpClient client = new OpaHttpClient(
                 config.getEndpointUrl(),
                 config.getTimeoutMs(),
                 config.getRetryMax(),
-                config.getRetryBackoffMs());
+                config.getRetryBackoffMs(),
+                config.isCircuitBreakerEnabled() ? circuitBreaker : null);
         OpaResponseParser responseParser = new OpaResponseParser(OpaConfig.SUPPORTED_SCHEMA_VERSION);
         OpaRequestMarshaller marshaller = new OpaRequestMarshaller();
         CacheKeyCalculator cacheKeyCalculator = new CacheKeyCalculator();
