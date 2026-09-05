@@ -43,6 +43,7 @@ class OpaFilterMethodsIntegrationTest
 
     private WireMockServer opa;
     private OpaAccessControl accessControl;
+    static final java.util.List<String> decisionLog = new java.util.ArrayList<>();
 
     private static SystemSecurityContext context()
     {
@@ -57,6 +58,7 @@ class OpaFilterMethodsIntegrationTest
     {
         opa = new WireMockServer(WireMockConfiguration.options().dynamicPort());
         opa.start();
+        decisionLog.clear();
         accessControl = newAccessControl(opa.port());
     }
 
@@ -80,7 +82,9 @@ class OpaFilterMethodsIntegrationTest
                 new OpaRequestMarshaller(),
                 new CacheKeyCalculator(),
                 new DecisionCache(true, 10_000, 30, 2, List.of("source_ip", "catalog_session_properties")),
-                new SqlExpressionValidator(List.of()));
+                new SqlExpressionValidator(List.of()),
+                io.opa.trino.metrics.OpaMetrics.createDefault(),
+                decisionLog::add);
     }
 
     private void stubFilter(String body)

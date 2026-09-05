@@ -46,6 +46,7 @@ class OpaAccessControlIntegrationTest
 
     private WireMockServer opa;
     private OpaAccessControl accessControl;
+    static final java.util.List<String> decisionLog = new java.util.ArrayList<>();
 
     private static SystemSecurityContext context(String user, Set<String> groups)
     {
@@ -60,6 +61,7 @@ class OpaAccessControlIntegrationTest
     {
         opa = new WireMockServer(WireMockConfiguration.options().dynamicPort());
         opa.start();
+        decisionLog.clear();
         accessControl = newAccessControl(opa.port(), 250);
     }
 
@@ -84,7 +86,9 @@ class OpaAccessControlIntegrationTest
                 new OpaRequestMarshaller(),
                 new CacheKeyCalculator(),
                 new DecisionCache(true, 10_000, 30, 2, List.of("source_ip", "catalog_session_properties")),
-                new SqlExpressionValidator(List.of()));
+                new SqlExpressionValidator(List.of()),
+                io.opa.trino.metrics.OpaMetrics.createDefault(),
+                decisionLog::add);
     }
 
     private void stubAllow(String body)

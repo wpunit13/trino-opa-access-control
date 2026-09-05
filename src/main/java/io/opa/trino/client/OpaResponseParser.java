@@ -27,6 +27,17 @@ public final class OpaResponseParser
     /** Authorization check (§3.2.A). Undefined rule → deny (not an error). */
     public Boolean parseBoolean(JsonNode root)
     {
+        Object decision = parseBooleanOrColumnMap(root);
+        return (Boolean) decision;
+    }
+
+    /**
+     * Authorization check with per-column support (§5 note: "single boolean for the
+     * whole set, or a per-column allow/deny map"). Returns either a Boolean or a
+     * Map<String, Boolean> (column name → allowed).
+     */
+    public Object parseBooleanOrColumnMap(JsonNode root)
+    {
         // An undefined rule yields OPA's bare document (no result, no schema_version):
         // default deny per §7 without flagging a malformed response.
         boolean bareDocument = root != null && root.isObject()
@@ -40,10 +51,22 @@ public final class OpaResponseParser
             // No matching OPA rule → default deny per §7.
             return false;
         }
-        if (!result.isBoolean()) {
-            throw new OpaResponseException("OPA allow response 'result' must be a boolean");
+        if (result.isBoolean()) {
+            return result.asBoolean();
         }
-        return result.asBoolean();
+        if (result.isObject()) {
+            java.util.Map<String, Boolean> perColumn = new java.util.LinkedHashMap<>();
+            java.util.Iterator<java.util.Map.Entry<String, JsonNode>> fields = result.fields();
+            while (fields.hasNext()) {
+                var field = fields.next();
+                if (!field.getValue().isBoolean()) {
+                    throw new OpaResponseException("OPA per-column result values must be booleans: " + field.getKey());
+                }
+                perColumn.put(field.getKey(), field.getValue().asBoolean());
+            }
+            return perColumn;
+        }
+        throw new OpaResponseException("OPA allow response 'result' must be a boolean or per-column object");
     }
 
     /** Row filters (§3.2.B): a list of SQL predicate strings; empty list = no filter. */

@@ -7,6 +7,8 @@ import io.opa.trino.client.OpaHttpClient;
 import io.opa.trino.client.OpaResponseParser;
 import io.opa.trino.config.OpaConfig;
 import io.opa.trino.marshal.OpaRequestMarshaller;
+import io.opa.trino.metrics.DecisionLogger;
+import io.opa.trino.metrics.OpaMetrics;
 import io.opa.trino.sql.SqlExpressionValidator;
 import io.trino.spi.security.SystemAccessControl;
 import io.trino.spi.security.SystemAccessControlFactory;
@@ -79,6 +81,13 @@ public final class OpaAccessControlFactory
                 config.getRetryMax(),
                 config.getRetryBackoffMs(),
                 config.isCircuitBreakerEnabled() ? circuitBreaker : null);
+        OpaMetrics metrics = OpaMetrics.createDefault();
+        if (config.isCircuitBreakerEnabled()) {
+            // §8.4: expose the breaker state as a gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN).
+            metrics.registry().gauge("opa.circuitbreaker.state",
+                    java.util.List.of(io.micrometer.core.instrument.Tag.of("breaker", "opa")),
+                    circuitBreaker, breaker -> breaker.state().ordinal());
+        }
         OpaResponseParser responseParser = new OpaResponseParser(OpaConfig.SUPPORTED_SCHEMA_VERSION);
         OpaRequestMarshaller marshaller = new OpaRequestMarshaller();
         CacheKeyCalculator cacheKeyCalculator = new CacheKeyCalculator();
@@ -91,6 +100,7 @@ public final class OpaAccessControlFactory
         SqlExpressionValidator sqlValidator = new SqlExpressionValidator(
                 config.isSqlParserEnabled() ? config.getAllowedFunctions() : List.of());
 
-        return new OpaAccessControl(config, client, responseParser, marshaller, cacheKeyCalculator, decisionCache, sqlValidator);
+        return new OpaAccessControl(config, client, responseParser, marshaller, cacheKeyCalculator, decisionCache, sqlValidator,
+                metrics, DecisionLogger.slf4j());
     }
 }
