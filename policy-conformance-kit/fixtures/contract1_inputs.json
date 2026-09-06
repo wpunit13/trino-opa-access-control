@@ -1,0 +1,179 @@
+{
+  "inputs" : {
+    "create_table_alice" : {
+      "schema_version" : 1,
+      "action" : "CREATE_TABLE",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "alice",
+        "groups" : [ "legal_entity_reader_eu" ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "salaries",
+        "columns" : null
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "select_columns_alice" : {
+      "schema_version" : 1,
+      "action" : "SELECT_FROM_COLUMNS",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "alice",
+        "groups" : [ "legal_entity_reader_eu" ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "salaries",
+        "columns" : [ "name", "salary", "ssn" ]
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "create_table_nobody" : {
+      "schema_version" : 1,
+      "action" : "CREATE_TABLE",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "nobody",
+        "groups" : [ ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "salaries",
+        "columns" : null
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "row_filters_alice" : {
+      "schema_version" : 1,
+      "action" : "GET_ROW_FILTERS",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "alice",
+        "groups" : [ "legal_entity_reader_eu" ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "salaries",
+        "columns" : null
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "row_filters_nobody" : {
+      "schema_version" : 1,
+      "action" : "GET_ROW_FILTERS",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "nobody",
+        "groups" : [ ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "salaries",
+        "columns" : null
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "column_masks_ssn" : {
+      "schema_version" : 1,
+      "action" : "GET_COLUMN_MASKS",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "alice",
+        "groups" : [ "legal_entity_reader_eu" ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : "finance",
+        "table" : "customers",
+        "columns" : [ "ssn" ]
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    },
+    "filter_schemas" : {
+      "schema_version" : 1,
+      "action" : "FILTER_SCHEMAS",
+      "decision_id" : "00000000-0000-0000-0000-000000000000",
+      "identity" : {
+        "user" : "alice",
+        "groups" : [ "legal_entity_reader_eu" ],
+        "roles" : {
+          "system" : [ "analyst" ]
+        },
+        "client_tags" : [ ],
+        "source_ip" : "10.0.0.5"
+      },
+      "resource" : {
+        "catalog" : "lakehouse",
+        "schema" : null,
+        "table" : null,
+        "columns" : [ "finance", "hr", "pii" ]
+      },
+      "session" : {
+        "query_id" : "20260905_001234_00001_abcde",
+        "query_type" : null,
+        "catalog_session_properties" : { }
+      }
+    }
+  }
+}
