@@ -44,6 +44,11 @@ redeploying Trino coordinator nodes.
 
 ```mermaid
 graph TB
+classDef client fill:#E8F0FE,stroke:#1A73E8,color:#111111
+classDef trino fill:#E6F4EA,stroke:#188038,color:#111111
+classDef plugin fill:#FEF7E0,stroke:#F9AB00,color:#111111
+classDef opa fill:#FCE8E6,stroke:#D93025,color:#111111
+classDef supply fill:#F3E8FD,stroke:#A142F4,color:#111111
     subgraph Client["Data consumers"]
         U["Analysts / tools (SQL clients, BI)"]
     end
@@ -64,9 +69,14 @@ graph TB
         R --> K --> C --> B
     end
     U -->|"queries"| Q
-    P -->|"POST /v1/data/trino/*<br/>{\"input\": Contract 1}"| O
+    P -->|"POST /v1/data/trino/*<br/>Contract 1 input envelope"| O
     O -->|"Contract 2 responses"| P
     B -->|"bundle polling"| O
+    class U client
+    class Q,SPI trino
+    class P plugin
+    class O opa
+    class R,K,C,B supply
 ```
 
 ### 2.2 Request flow
@@ -83,7 +93,7 @@ sequenceDiagram
     alt cache hit
         C-->>P: decision
     else cache miss
-        P->>O: POST /v1/data/trino/<path> {"input": ...}
+        P->>O: POST /v1/data/trino/... (Contract 1 input envelope)
         O-->>P: Contract 2 response (or error/undefined)
         P->>P: parse + schema_version check + render/validate SQL
         P->>C: store (short TTL for volatile inputs)
@@ -111,8 +121,14 @@ plugin/policy version skew is caught before deployment:
 
 ```mermaid
 graph LR
+classDef loop fill:#E8F0FE,stroke:#1A73E8,color:#111111
+classDef gate fill:#E6F4EA,stroke:#188038,color:#111111
+classDef runtime fill:#FCE8E6,stroke:#D93025,color:#111111
     A["1. Conformance kit<br/>Rego re-statement<br/>(authoring loop, ms-fast)"] --> B["2. Conformance CLI jar<br/>REAL Java parser<br/>(CI gate, blocks bundle publish)"]
     B --> C["3. Plugin runtime<br/>fail-closed parsing/validation<br/>(last line of defense)"]
+    class A loop
+    class B gate
+    class C runtime
 ```
 
 The CLI gate is the strongest link for skew: because it runs the *authoritative
@@ -131,6 +147,10 @@ one bundle rollout reaches every cluster at once.
 
 ```mermaid
 graph LR
+classDef supply fill:#F3E8FD,stroke:#A142F4,color:#111111
+classDef opa fill:#FCE8E6,stroke:#D93025,color:#111111
+classDef trino fill:#E6F4EA,stroke:#188038,color:#111111
+classDef infra fill:#E8F0FE,stroke:#1A73E8,color:#111111
     subgraph Policy["Policy supply chain (org-wide)"]
         G["Git"] --> CI["CI: kit + CLI gate"] --> AR["Bundle artifact (S3/GCS)"]
     end
@@ -140,6 +160,10 @@ graph LR
     O2 --> LB
     LB -->|"HTTP(S) + auth"| T1["Trino coordinator A"]
     LB --> T2["Trino coordinator B"]
+    class G,CI,AR supply
+    class O1,O2 opa
+    class LB infra
+    class T1,T2 trino
 ```
 
 **Pattern B — per-coordinator sidecars (lowest latency).** An OPA daemon on
@@ -148,6 +172,9 @@ bundle artifact, keeping the artifact model reversible.
 
 ```mermaid
 graph TB
+classDef opa fill:#FCE8E6,stroke:#D93025,color:#111111
+classDef trino fill:#E6F4EA,stroke:#188038,color:#111111
+classDef infra fill:#E8F0FE,stroke:#1A73E8,color:#111111
     AR["Central bundle artifact (S3/GCS)"]
     subgraph NodeA["Coordinator node A"]
         T1["Trino"] -->|"loopback"| O1["OPA sidecar"]
@@ -157,6 +184,9 @@ graph TB
     end
     AR -->|"poll"| O1
     AR -->|"poll"| O2
+    class AR infra
+    class O1,O2 opa
+    class T1,T2 trino
 ```
 
 **Choosing between them:** Pattern A minimizes operational surface (one fleet
