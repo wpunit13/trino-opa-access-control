@@ -1,10 +1,10 @@
 # Contract-2 Conformance Kit (for Rego policy authors)
 
-> Project status, decisions, and pending items: see `ROADMAP.md` (single source
+> Project status, decisions, and pending items: see `docs/ROADMAP.md` (single source
 > of truth). This README covers the kit only.
 
 > **Mode note:** the plugin's default SQL mode is being flipped to **safe**
-> (see ROADMAP.md M7/D6). The kit's default `MODE` will follow that change; until
+> (see docs/ROADMAP.md M7/D6). The kit's default `MODE` will follow that change; until
 > the code flip lands, run the kit with `MODE=safe` to test safe-mode policies.
 
 Regression harness for Rego policies consumed by the trino-opa-access-control
