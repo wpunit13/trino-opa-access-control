@@ -20,6 +20,7 @@ Thumbs.db
 # Docs not to publish
 ARCHITECTURE.md
 IMPLEMENTATION-NOTES.md
+ROADMAP.md
 prompt.md
 review.md
 /SPI-COVERAGE.md

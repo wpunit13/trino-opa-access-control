@@ -28,11 +28,13 @@ public class OpaConfig
 
     private boolean tlsEnabled;
     private String tlsTruststorePath;
+    private String tlsTruststorePassword;
     private String authToken;
 
     private String sqlMode = "passthrough";
     private boolean sqlParserEnabled = true;
     private List<String> allowedFunctions = List.of();
+    private int maxInClauseSize = 1_000;
 
     private boolean cacheEnabled = true;
     private int cacheTtlSeconds = 30;
@@ -189,6 +191,19 @@ public class OpaConfig
         return tlsTruststorePath;
     }
 
+    @Config("opa.client.tls.truststore.password")
+    @ConfigDescription("Password for the TLS truststore; must be a file:// reference (never a literal, to keep secrets out of config files)")
+    public OpaConfig setTlsTruststorePassword(String tlsTruststorePassword)
+    {
+        this.tlsTruststorePassword = tlsTruststorePassword;
+        return this;
+    }
+
+    public String getTlsTruststorePassword()
+    {
+        return tlsTruststorePassword;
+    }
+
     @Config("opa.client.auth.token")
     public OpaConfig setAuthToken(String authToken)
     {
@@ -236,6 +251,19 @@ public class OpaConfig
     public List<String> getAllowedFunctions()
     {
         return allowedFunctions;
+    }
+
+    @Config("opa.sql.max-in-clause-size")
+    @ConfigDescription("Safe mode: maximum number of values rendered into one IN (...) clause; larger results fail closed")
+    public OpaConfig setMaxInClauseSize(int maxInClauseSize)
+    {
+        this.maxInClauseSize = maxInClauseSize;
+        return this;
+    }
+
+    public int getMaxInClauseSize()
+    {
+        return maxInClauseSize;
     }
 
     @Config("opa.cache.enabled")
@@ -362,11 +390,66 @@ public class OpaConfig
         if (!"passthrough".equalsIgnoreCase(sqlMode) && !"safe".equalsIgnoreCase(sqlMode)) {
             throw new IllegalArgumentException("opa.sql.mode must be 'passthrough' or 'safe': " + sqlMode);
         }
+        if (maxInClauseSize <= 0) {
+            throw new IllegalArgumentException("opa.sql.max-in-clause-size must be > 0");
+        }
         if (cacheTtlSeconds < 0 || negativeTtlSeconds < 0 || cacheMaxSize < 0) {
             throw new IllegalArgumentException("cache ttl/size settings must be >= 0");
         }
-        if (tlsEnabled && (tlsTruststorePath == null || tlsTruststorePath.isBlank())) {
-            throw new IllegalArgumentException("opa.client.tls.truststore.path is required when TLS is enabled");
+        if (tlsEnabled) {
+            if (tlsTruststorePath == null || tlsTruststorePath.isBlank()) {
+                throw new IllegalArgumentException("opa.client.tls.truststore.path is required when TLS is enabled");
+            }
+            java.io.File truststore = new java.io.File(tlsTruststorePath);
+            if (!truststore.isFile() || !truststore.canRead()) {
+                throw new IllegalArgumentException("opa.client.tls.truststore.path does not exist or is not readable: " + tlsTruststorePath);
+            }
+            if (tlsTruststorePassword != null) {
+                if (!tlsTruststorePassword.startsWith("file://")) {
+                    throw new IllegalArgumentException("opa.client.tls.truststore.password must be a file:// reference (literals are rejected to keep secrets out of config files)");
+                }
+                java.io.File passwordFile = new java.io.File(tlsTruststorePassword.substring("file://".length()));
+                if (!passwordFile.isFile() || !passwordFile.canRead()) {
+                    throw new IllegalArgumentException("opa.client.tls.truststore.password file does not exist or is not readable: " + tlsTruststorePassword);
+                }
+            }
         }
+        if (authToken != null && authToken.startsWith("file://")) {
+            java.io.File tokenFile = new java.io.File(authToken.substring("file://".length()));
+            if (!tokenFile.isFile() || !tokenFile.canRead()) {
+                throw new IllegalArgumentException("opa.client.auth.token file does not exist or is not readable: " + authToken);
+            }
+        }
+    }
+
+    /** Resolves the bearer token: {@code file://path} is read from disk, anything else is literal. */
+    public String resolvedAuthToken()
+    {
+        return resolveSecret(authToken, "opa.client.auth.token");
+    }
+
+    /** Resolves the truststore password; only {@code file://} references are accepted. */
+    public char[] resolvedTruststorePassword()
+    {
+        if (tlsTruststorePassword == null) {
+            return null;
+        }
+        return resolveSecret(tlsTruststorePassword, "opa.client.tls.truststore.password").toCharArray();
+    }
+
+    private static String resolveSecret(String value, String configKey)
+    {
+        if (value == null) {
+            return null;
+        }
+        if (value.startsWith("file://")) {
+            try {
+                return java.nio.file.Files.readString(java.nio.file.Path.of(value.substring("file://".length()))).trim();
+            }
+            catch (java.io.IOException e) {
+                throw new IllegalArgumentException("Unable to read " + configKey + " file: " + value, e);
+            }
+        }
+        return value;
     }
 }

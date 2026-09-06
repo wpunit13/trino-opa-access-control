@@ -3,11 +3,14 @@ package io.opa.trino.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -22,6 +25,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * Resilience (§6.3): OPA decision calls are read-only and idempotent, so transient
  * failures are retried with exponential backoff plus jitter. An optional
  * {@link CircuitBreaker} wraps dispatch so a degraded PDP fails fast.
+ *
+ * Hardening (§8.5): optional bearer-token auth and TLS with a custom truststore
+ * (mTLS-style server verification) when the PDP is not on loopback.
  */
 public final class OpaHttpClient
 {
@@ -33,23 +39,56 @@ public final class OpaHttpClient
     private final int retryMax;
     private final int retryBackoffMs;
     private final CircuitBreaker circuitBreaker;
+    private final String bearerToken;
+    private final boolean tls;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public OpaHttpClient(String endpointUrl, int timeoutMs, int retryMax, int retryBackoffMs)
     {
-        this(endpointUrl, timeoutMs, retryMax, retryBackoffMs, null);
+        this(endpointUrl, timeoutMs, retryMax, retryBackoffMs, null, null, null);
     }
 
     public OpaHttpClient(String endpointUrl, int timeoutMs, int retryMax, int retryBackoffMs, CircuitBreaker circuitBreaker)
+    {
+        this(endpointUrl, timeoutMs, retryMax, retryBackoffMs, circuitBreaker, null, null);
+    }
+
+    public OpaHttpClient(String endpointUrl, int timeoutMs, int retryMax, int retryBackoffMs,
+                         CircuitBreaker circuitBreaker, String bearerToken, SSLContext sslContext)
     {
         this.endpointUrl = endpointUrl.endsWith("/") ? endpointUrl.substring(0, endpointUrl.length() - 1) : endpointUrl;
         this.timeoutMs = timeoutMs;
         this.retryMax = retryMax;
         this.retryBackoffMs = retryBackoffMs;
         this.circuitBreaker = circuitBreaker;
-        this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(timeoutMs))
-                .build();
+        this.bearerToken = bearerToken;
+        this.tls = sslContext != null;
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(timeoutMs));
+        if (sslContext != null) {
+            builder.sslContext(sslContext);
+        }
+        this.client = builder.build();
+    }
+
+    /** Builds an SSLContext that trusts only the given PKCS12 truststore (§8.5). */
+    public static SSLContext sslContextWithTruststore(String truststorePath, char[] password)
+            throws GeneralSecurityException, IOException
+    {
+        KeyStore trustStore = KeyStore.getInstance("PKCS12");
+        try (var in = java.nio.file.Files.newInputStream(java.nio.file.Path.of(truststorePath))) {
+            trustStore.load(in, password);
+        }
+        var tmf = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(trustStore);
+        SSLContext context = SSLContext.getInstance("TLS");
+        context.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+        return context;
+    }
+
+    public boolean usesTls()
+    {
+        return tls;
     }
 
     /**
@@ -73,12 +112,15 @@ public final class OpaHttpClient
             throw new OpaClientException("Unable to serialize OPA request", e);
         }
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(endpointUrl + path))
                 .timeout(Duration.ofMillis(timeoutMs))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (bearerToken != null) {
+            requestBuilder.header("Authorization", "Bearer " + bearerToken);
+        }
+        HttpRequest request = requestBuilder.build();
 
         Exception lastError = null;
         for (int attempt = 0; attempt <= retryMax; attempt++) {

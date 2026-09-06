@@ -12,6 +12,7 @@ import io.opa.trino.marshal.OpaAction;
 import io.opa.trino.marshal.OpaRequestContext;
 import io.opa.trino.metrics.DecisionLogger;
 import io.opa.trino.metrics.OpaMetrics;
+import io.opa.trino.sql.DescriptorRenderer;
 import io.opa.trino.sql.SqlExpressionValidator;
 import io.trino.spi.QueryId;
 import io.trino.spi.connector.CatalogSchemaName;
@@ -61,6 +62,7 @@ public final class OpaAccessControl
     private final SqlExpressionValidator sqlValidator;
     private final OpaMetrics metrics;
     private final DecisionLogger decisionLogger;
+    private final DescriptorRenderer descriptorRenderer;
 
     public OpaAccessControl(
             OpaConfig config,
@@ -82,6 +84,7 @@ public final class OpaAccessControl
         this.sqlValidator = sqlValidator;
         this.metrics = metrics;
         this.decisionLogger = decisionLogger;
+        this.descriptorRenderer = new DescriptorRenderer(config.getMaxInClauseSize());
     }
 
     /** Caller identity + query id, normalized across the two SPI context shapes. */
@@ -777,7 +780,16 @@ public final class OpaAccessControl
             long start = System.nanoTime();
             try {
                 JsonNode response = client.query(pathFor(OpaAction.GET_ROW_FILTERS), input);
-                filters = responseParser.parseRowFilters(response);
+                if (isSafeMode()) {
+                    // §3.4 mode 2: OPA emits descriptors; the plugin renders (and
+                    // therefore owns quoting/escaping of) all SQL.
+                    filters = responseParser.parseRowFilterDescriptors(response).stream()
+                            .map(descriptorRenderer::render)
+                            .toList();
+                }
+                else {
+                    filters = responseParser.parseRowFilters(response);
+                }
             }
             catch (RuntimeException e) {
                 throw failClosed(key, e, OpaAction.GET_ROW_FILTERS, decisionId);
@@ -827,7 +839,14 @@ public final class OpaAccessControl
             long start = System.nanoTime();
             try {
                 JsonNode response = client.query(pathFor(OpaAction.GET_COLUMN_MASKS), input);
-                mask = Optional.ofNullable(responseParser.parseColumnMask(response));
+                if (isSafeMode()) {
+                    // §3.4 mode 2: descriptor → plugin-rendered SQL (escaped here).
+                    io.opa.trino.client.OpaFilterDescriptor descriptor = responseParser.parseColumnMaskDescriptor(response);
+                    mask = Optional.ofNullable(descriptor).map(descriptorRenderer::render);
+                }
+                else {
+                    mask = Optional.ofNullable(responseParser.parseColumnMask(response));
+                }
             }
             catch (RuntimeException e) {
                 throw failClosed(key, e, OpaAction.GET_COLUMN_MASKS, decisionId);
@@ -883,6 +902,11 @@ public final class OpaAccessControl
                     + (table != null ? "." + table : "")
                     + (columns != null && !columns.isEmpty() ? " (" + columns + ")" : ""));
         }
+    }
+
+    private boolean isSafeMode()
+    {
+        return "safe".equalsIgnoreCase(config.getSqlMode());
     }
 
     private boolean evaluateBoolean(OpaAction action, CallerCtx ctx, String catalog, String schema, String table, List<String> columns, String decisionId)

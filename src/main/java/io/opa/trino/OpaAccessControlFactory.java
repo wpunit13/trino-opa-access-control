@@ -40,10 +40,12 @@ public final class OpaAccessControlFactory
             "opa.client.retry-backoff-ms",
             "opa.client.tls.enabled",
             "opa.client.tls.truststore.path",
+            "opa.client.tls.truststore.password",
             "opa.client.auth.token",
             "opa.sql.mode",
             "opa.sql.parser.enabled",
             "opa.sql.allowed-functions",
+            "opa.sql.max-in-clause-size",
             "opa.cache.enabled",
             "opa.cache.ttl-seconds",
             "opa.cache.max-size",
@@ -75,12 +77,29 @@ public final class OpaAccessControlFactory
         io.opa.trino.client.CircuitBreaker circuitBreaker = new io.opa.trino.client.CircuitBreaker(
                 config.getCircuitBreakerFailureThreshold(),
                 config.getCircuitBreakerOpenDurationMs());
+
+        // §8.5 hardening: bearer-token auth (literal or file:// path) and TLS with a
+        // custom truststore. Both are validated/fail-fast in OpaConfig.validate().
+        String bearerToken = config.resolvedAuthToken();
+        javax.net.ssl.SSLContext sslContext = null;
+        if (config.isTlsEnabled()) {
+            try {
+                sslContext = OpaHttpClient.sslContextWithTruststore(
+                        config.getTlsTruststorePath(), config.resolvedTruststorePassword());
+            }
+            catch (Exception e) {
+                throw new IllegalArgumentException("Unable to load opa.client.tls.truststore.path: "
+                        + config.getTlsTruststorePath(), e);
+            }
+        }
         OpaHttpClient client = new OpaHttpClient(
                 config.getEndpointUrl(),
                 config.getTimeoutMs(),
                 config.getRetryMax(),
                 config.getRetryBackoffMs(),
-                config.isCircuitBreakerEnabled() ? circuitBreaker : null);
+                config.isCircuitBreakerEnabled() ? circuitBreaker : null,
+                bearerToken,
+                sslContext);
         OpaMetrics metrics = OpaMetrics.createDefault();
         if (config.isCircuitBreakerEnabled()) {
             // §8.4: expose the breaker state as a gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN).

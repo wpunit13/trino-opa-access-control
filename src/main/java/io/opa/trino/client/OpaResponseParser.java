@@ -85,6 +85,83 @@ public final class OpaResponseParser
         return parseStringList(root, "filter");
     }
 
+    // ---- Safe mode (§3.4): structured descriptors instead of raw SQL ----
+
+    /** Row filters in safe mode: a list of descriptors; empty list = no filter. */
+    public List<OpaFilterDescriptor> parseRowFilterDescriptors(JsonNode root)
+    {
+        JsonNode result = unwrap(root).get("result");
+        if (result == null || result.isNull()) {
+            throw new OpaResponseException("OPA row_filters response is missing 'result'");
+        }
+        if (!result.isArray()) {
+            throw new OpaResponseException("OPA row_filters 'result' must be an array of descriptors");
+        }
+        List<OpaFilterDescriptor> descriptors = new ArrayList<>();
+        for (JsonNode item : result) {
+            descriptors.add(parseDescriptor(item, "row_filters"));
+        }
+        return descriptors;
+    }
+
+    /** Column mask in safe mode: a single descriptor or null (unmasked). */
+    public OpaFilterDescriptor parseColumnMaskDescriptor(JsonNode root)
+    {
+        JsonNode node = unwrap(root);
+        if (!node.has("result")) {
+            throw new OpaResponseException("OPA column_masks response is missing 'result'");
+        }
+        JsonNode result = node.get("result");
+        if (result == null || result.isNull()) {
+            return null;
+        }
+        return parseDescriptor(result, "column_masks");
+    }
+
+    /** Validates the descriptor schema; anything malformed fails closed. */
+    private OpaFilterDescriptor parseDescriptor(JsonNode item, String contractName)
+    {
+        if (item == null || !item.isObject()) {
+            throw new OpaResponseException("OPA " + contractName + " safe-mode entries must be descriptor objects");
+        }
+        JsonNode op = item.get("op");
+        JsonNode column = item.get("column");
+        if (op == null || !op.isTextual() || !OpaFilterDescriptor.SUPPORTED_OPS.contains(op.asText())) {
+            throw new OpaResponseException("OPA " + contractName + " descriptor has an unsupported 'op': "
+                    + (op == null ? "missing" : op.asText()) + " (supported: " + OpaFilterDescriptor.SUPPORTED_OPS + ")");
+        }
+        if (column == null || !column.isTextual() || column.asText().isBlank()) {
+            throw new OpaResponseException("OPA " + contractName + " descriptor is missing a 'column' string");
+        }
+        String opName = op.asText();
+        List<Object> values = new ArrayList<>();
+        boolean valueOp = opName.equals("in") || opName.equals("eq") || opName.equals("neq");
+        if (valueOp) {
+            JsonNode valuesNode = item.get("values");
+            if (valuesNode == null || !valuesNode.isArray()) {
+                throw new OpaResponseException("OPA " + contractName + " descriptor op='" + opName + "' requires a 'values' array");
+            }
+            for (JsonNode value : valuesNode) {
+                if (!value.isValueNode() || value.isNull()) {
+                    throw new OpaResponseException("OPA " + contractName + " descriptor values must be non-null scalars");
+                }
+                if (value.isTextual()) {
+                    values.add(value.asText());
+                }
+                else if (value.isNumber()) {
+                    values.add(value.decimalValue());
+                }
+                else if (value.isBoolean()) {
+                    values.add(value.asBoolean());
+                }
+                else {
+                    throw new OpaResponseException("OPA " + contractName + " descriptor values must be scalars");
+                }
+            }
+        }
+        return new OpaFilterDescriptor(opName, column.asText(), values);
+    }
+
     private List<String> parseStringList(JsonNode root, String contractName)
     {
         JsonNode result = unwrap(root).get("result");
