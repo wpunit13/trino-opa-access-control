@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Starts the demo deployment: OPA (demo bundle) + local Trino coordinator with
+# the plugin baked in. Builds whatever is missing. Idempotent — safe to re-run.
+#
+#   ./demo/start.sh
+#
+# Then connect DBeaver: host localhost, port 8080, user admin (see demo/README.md).
+# Stop again with ./demo/stop.sh
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# The build requires JDK 23+ (Trino 474 ships Java 23 bytecode). Pick one if
+# JAVA_HOME is not already set (macOS via java_home, else assume PATH is right).
+if [ -z "${JAVA_HOME:-}" ]; then
+  if [ "$(uname)" = "Darwin" ] && /usr/libexec/java_home -v 23+ >/dev/null 2>&1; then
+    JAVA_HOME="$(/usr/libexec/java_home -v 23+)"
+    export JAVA_HOME
+    echo "Using JAVA_HOME=$JAVA_HOME"
+  else
+    echo "WARNING: JAVA_HOME is not set and no JDK 23+ was auto-detected; the build may fail." >&2
+  fi
+fi
+
+echo "== 1/3 building the plugin jar + runtime deps =="
+mvn -q package dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/plugin -DskipTests
+# dependency:copy-dependencies does not include the project's own artifact — the
+# plugin jar must sit next to its deps in the plugin directory (never the CLI jar).
+ls target/trino-opa-access-control-*.jar | grep -v conformance-cli | xargs -I{} cp {} target/plugin/
+# Trino's plugin classloader is isolated and does NOT provide airlift (config
+# framework) or slf4j-api even though they are provided-scope for us — bundle
+# them, but never trino-spi/trino-parser (coordinator-owned).
+mvn -q dependency:copy-dependencies -DincludeScope=provided \
+    -DexcludeGroupIds=io.trino \
+    -DoutputDirectory=target/plugin -DskipTests
+
+echo "== 2/3 starting OPA + Trino (first run pulls trinodb/trino:474, ~1 GB) =="
+docker compose -f demo/docker-compose.yml --profile trino up -d --build
+
+echo "== 3/3 waiting for the coordinator =="
+for i in $(seq 1 60); do
+  if docker compose -f demo/docker-compose.yml exec -T trino \
+      trino --execute "SELECT 1" >/dev/null 2>&1; then
+    echo ""
+    echo "Demo is up."
+    echo "  DBeaver : host localhost, port 8080, user admin, no password"
+    echo "  Allowed : SELECT * FROM tpch.tiny.nation"
+    echo "  Denied  : SELECT * FROM tpch.tiny.customer  (Access Denied — by policy)"
+    echo "  Stop    : ./demo/stop.sh"
+    exit 0
+  fi
+  printf '.'
+  sleep 2
+done
+echo "" >&2
+echo "Coordinator did not become ready in ~2 minutes; check: docker compose -f demo/docker-compose.yml logs trino" >&2
+exit 1

@@ -8,7 +8,7 @@ for the full SPI matrix, [ARCHITECTURE.md](ARCHITECTURE.md) for the original
 design background, and [IMPLEMENTATION-NOTES.md](IMPLEMENTATION-NOTES.md) for
 pinned versions, assumptions, and deviations.
 
-## Status — Milestones 1–4
+## Status — Milestones 1–6
 
 Implemented: config (fail-fast validation), Contract 1 marshaling, OPA HTTP
 client, Contract 2 response parsing + schema-version enforcement, Caffeine
@@ -34,8 +34,51 @@ MODE=safe ./run.sh examples/safe   # safe-mode (descriptor) example
 
 Exit 0 = conforming. Fixtures are generated from the plugin's own Java tests
 (`mvn test` refreshes them), so they cannot drift from what the plugin sends.
-Details: `policy-conformance-kit/README.md`. (A jar-based CI gate that validates
-against the real Java parser is planned as Milestone 6.)
+Details: `policy-conformance-kit/README.md`.
+
+## Conformance CLI (CI gate for Rego policy repos)
+
+`mvn package` produces **two artifacts from one source tree at one version**:
+
+| Artifact | Contents |
+|---|---|
+| `trino-opa-access-control-<v>.jar` | the plugin, unshaded, installed per coordinator |
+| `trino-opa-access-control-<v>-conformance-cli.jar` | shaded self-contained CLI (Jackson bundled), `Main-Class: io.opa.trino.cli.ConformanceCli` |
+
+The CLI is the deployment gate: a Rego repo's CI calls it before publishing a
+bundle. It spawns a throwaway `opa eval` per fixture against the policy
+directory (OPA is the only Rego interpreter — the jar never parses Rego) and
+judges every response with the plugin's **authoritative**
+`OpaResponseParser` / `DescriptorRenderer` / `SqlExpressionValidator`, so a
+policy conforming to yesterday's contract fails against a new jar before
+deployment, and vice versa.
+
+```bash
+# needs opa >= 1.0 on PATH and a JDK >= 23 to run
+java -jar trino-opa-access-control-<v>-conformance-cli.jar conformance \
+    --policy-dir /path/to/your/policies \
+    --mode safe            # must match the plugin's opa.sql.mode (default: passthrough)
+```
+
+Options: `--mode passthrough|safe`, `--fixtures <path>` (default: the M5 kit
+fixtures), `--opa <path>`, `--max-in-clause-size <n>`, `--schema-version <n>`
+(repeat `--policy-dir` to load extra Rego data documents, e.g. the kit's
+`cli-negative` mock policy).
+
+Exit codes: **0** all responses conform (bundle publishable); **1** the plugin
+would reject a response — the message names the contract clause (§3.2.A–D) and
+the failing fixture; **2** fail fast (missing `opa` binary, missing policy dir
+or fixtures — the gate can never be silently skipped).
+
+The Rego-repo CI pattern: `opa test` (fast loop, `policy-conformance-kit/run.sh`)
++ the CLI jar (gate) both green → bundle publishable.
+
+## Demo deployment
+
+`demo/docker-compose.yml` runs stock OPA with the M5 example bundle and
+(optionally, profile `trino`) a local coordinator with the plugin baked in.
+See `demo/README.md` for the 10-minute walkthrough. Explicitly not a
+production template.
 
 ## Build & test
 

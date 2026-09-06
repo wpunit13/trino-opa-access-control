@@ -1,0 +1,45 @@
+# Demo-grade reference deployment (Milestone 6). Explicitly NOT a production
+# template: no HA OPA, no TLS, no auth, default cache settings.
+#
+# Services:
+#   opa    — stock OPA loading the M5 safe-mode example policy as a bundle
+#   trino  — (profile "trino") local coordinator with the plugin jar baked in;
+#            build it first, see demo/README.md
+#
+# Usage:
+#   docker compose up -d opa
+#   docker compose --profile trino up -d --build
+#   ./verify.sh
+services:
+  opa:
+    image: openpolicyagent/opa:1.6.0
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      # Console decision logs: every plugin decision (input + result) lands in
+      # `docker compose logs opa` — handy for debugging policies in the demo.
+      - --set=decision_logs.console=true
+      - --log-level=info
+      - /bundle
+    volumes:
+      # DEMO bundle: user "admin" may SELECT tpch.tiny.nation; tpch.tiny.customer
+      # is default-denied; other users denied. Swap for the strict group-based M5
+      # example to see fail-closed behavior (every query denied):
+      #   - ../policy-conformance-kit/examples/safe:/bundle:ro
+      - ../demo/opa-bundle:/bundle:ro
+    ports:
+      - "8181:8181"
+    # No container healthcheck: the OPA image has no wget/curl/shell utilities.
+    # demo/start.sh waits for real readiness (a live Trino query) instead.
+
+  trino:
+    image: trino-opa-demo/trino:474
+    build:
+      context: ..
+      dockerfile: demo/trino/Dockerfile
+    profiles: ["trino"]
+    depends_on:
+      - opa
+    ports:
+      - "8080:8080"

@@ -78,6 +78,32 @@ real request marshaller — they cannot drift from what the plugin sends. Files:
 | `column_masks_ssn` | column mask |
 | `filter_schemas` | bulk filter (candidate list → subset) |
 
+## The CI gate: conformance CLI jar (Milestone 6)
+
+This kit is the fast authoring loop (pure `opa test`, Rego re-statement of the
+contract). The **stronger gate** is the plugin's CLI jar, which validates
+against the real Java implementation:
+
+```bash
+java -jar trino-opa-access-control-<v>-conformance-cli.jar conformance \
+    --policy-dir /path/to/your/policies --mode safe
+```
+
+It spawns `opa eval` per fixture (OPA is the only Rego interpreter) and judges
+every response with the plugin's `OpaResponseParser` / `DescriptorRenderer` /
+`SqlExpressionValidator`. Exit 0 = bundle publishable; non-zero names the
+contract clause and the failing fixture. See the project README.
+
+Fixture-name convention (both the kit's author tests and the CLI rely on it):
+`row_filters_*` → row filters, `column_masks_*` → masks, `filter_*` → filter,
+anything else → allow.
+
+`fixtures/broken/` holds the deliberately non-conforming responses the kit's
+self-tests assert against; `cli-negative/mock_policy.rego` serves those same
+broken responses at the plugin's data paths (selected by `input.decision_id`)
+so the CLI's negative tests exercise the full subprocess path. Never load
+either together with a real policy.
+
 ## Limitations (by design)
 
 - Shape conformance only. A policy returning perfectly-shaped `allow=true` for
