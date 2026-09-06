@@ -43,7 +43,14 @@ row_filters := {"schema_version": 1, "result": filters} if {
 
 default column_masks := {"schema_version": 1, "result": null}
 
-column_masks := {"schema_version": 1, "result": "CASE WHEN 'pii_admin' IN input.identity.groups THEN ssn ELSE '***-**-' END"} if {
+# NOTE: a passthrough mask must be a structurally valid Trino expression over the
+# target column only (the plugin runs SqlExpressionValidator with the target
+# table + the masked column as the allowed column set). Policy constructs such
+# as `input.identity.groups` do not exist in SQL — an earlier version of this
+# example emitted `CASE WHEN 'pii_admin' IN input.identity.groups ...`, which
+# the plugin correctly rejects (fail closed). Group-based masking decisions
+# belong in the Rego (as below); the SQL then only transforms the column.
+column_masks := {"schema_version": 1, "result": "CASE WHEN ssn IS NULL THEN NULL ELSE '***-**-' || substr(ssn, 8) END"} if {
 	input.action == "GET_COLUMN_MASKS"
 	not "pii_admin" in input.identity.groups
 }

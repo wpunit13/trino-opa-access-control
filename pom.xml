@@ -35,11 +35,13 @@
             <version>${trino.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- trino-parser is COMPILE scope so the shaded conformance-cli jar can bundle it
+             (the CLI drives the real SqlExpressionValidator). The plugin jar is unshaded, so its
+             contents are identical either way — no Trino code is added to the plugin artifact. -->
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-parser</artifactId>
             <version>${trino.version}</version>
-            <scope>provided</scope>
         </dependency>
         <!-- airlift configuration framework used by Trino plugins -->
         <dependency>
@@ -104,6 +106,58 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+            </plugin>
+            <!-- Milestone 6: second artifact trino-opa-access-control-<v>-conformance-cli.jar
+                 (classifier conformance-cli), shaded/self-contained, Main-Class io.opa.trino.cli.ConformanceCli.
+                 One source tree, one version: `mvn package` produces the unshaded plugin jar AND the CLI jar.
+                 Trino deps stay provided-scope: trino-spi / airlift are NOT bundled (the CLI never loads
+                 them). The ONLY exception is trino-parser (+trino-grammar), bundled because the scope
+                 requires the real SqlExpressionValidator in passthrough mode (see IMPLEMENTATION-NOTES). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>conformance-cli</shadedClassifierName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <artifactSet>
+                                <includes>
+                                    <include>io.opa.trino:trino-opa-access-control</include>
+                                    <include>com.fasterxml.jackson.core:jackson-databind</include>
+                                    <include>com.fasterxml.jackson.core:jackson-core</include>
+                                    <include>com.fasterxml.jackson.core:jackson-annotations</include>
+                                    <include>io.trino:trino-parser</include>
+                                    <include>io.trino:trino-grammar</include>
+                                    <include>org.antlr:antlr4-runtime</include>
+                                    <include>com.google.guava:guava</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>io.opa.trino.cli.ConformanceCli</mainClass>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
