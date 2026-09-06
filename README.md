@@ -133,7 +133,7 @@ Boolean and map responses may be mixed per policy rule.
 
 For the full request/response contract (what the plugin marshals into `input`,
 all response shapes, and the SQL validation rules), see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §3.1–3.5.
+[docs/CONTRACTS.md](docs/CONTRACTS.md) §3.1–3.5.
 
 ## Identity & group delegation
 
@@ -262,7 +262,8 @@ jar (gate) both green → bundle publishable.
 
 | Document | Read it for |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the original design: contracts (§3.1–3.5), resilience model (§6–7), config reference (§9) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the target architecture: components, flows, deployment topologies, resilience model, config reference |
+| [docs/CONTRACTS.md](docs/CONTRACTS.md) | the normative wire contracts (§3.1–§3.5) — what policies must emit and what the plugin sends |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | project status, all decisions (D-items), pending items — the single source of truth for "where is this going" |
 | [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
 | [docs/IMPLEMENTATION-NOTES.md](docs/IMPLEMENTATION-NOTES.md) | pinned versions, assumptions, deviations from the architecture doc |
