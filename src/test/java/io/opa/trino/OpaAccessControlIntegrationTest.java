@@ -125,6 +125,9 @@ class OpaAccessControlIntegrationTest
         var requests = opa.findAll(postRequestedFor(urlEqualTo("/v1/data/trino/allow")));
         assertThat(requests).hasSize(1);
         var body = requests.get(0).getBodyAsString();
+        // OPA data-API envelope: the marshaled Contract-1 input must be wrapped
+        // in {"input": ...} — a bare map evaluates with an undefined input.
+        assertThat(body).startsWith("{\"input\":{");
         assertThat(body).contains("\"schema_version\":1");
         assertThat(body).contains("\"action\":\"CREATE_TABLE\"");
         assertThat(body).contains("\"user\":\"alice\"");

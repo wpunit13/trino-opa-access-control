@@ -105,7 +105,10 @@ public final class OpaHttpClient
 
         String body;
         try {
-            body = mapper.writeValueAsString(input);
+            // OPA's data API expects the marshaled Contract-1 input wrapped in
+            // the server envelope: {"input": {...}}. Sending the bare input map
+            // makes OPA evaluate with an undefined input (everything denies).
+            body = mapper.writeValueAsString(Map.of("input", input));
         }
         catch (IOException e) {
             recordFailure();
