@@ -77,6 +77,9 @@ class OpaAccessControlIntegrationTest
         config.setEndpointUrl("http://127.0.0.1:" + port);
         config.setTimeoutMs(timeoutMs);
         config.setRetryMax(0);
+        // This class exercises passthrough-mode behavior (raw SQL strings from OPA).
+        // Since D6 flipped the OpaConfig default to safe, set it explicitly here.
+        config.setSqlMode("passthrough");
         config.validate();
 
         return new OpaAccessControl(

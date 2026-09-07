@@ -1,0 +1,64 @@
+# CI pipeline (Milestone 7, item 1 — Q-A: GitHub Actions).
+#
+# On every push/PR:
+#   - build + `mvn test` on a JDK matrix (23/25);
+#   - install opa and run the M5 conformance kit (self-test + both examples) so
+#     the harness itself is regression-protected;
+#   - run the D4 determinism scanner over the example policies (warning-level).
+#
+# `mvn test` also regenerates the Contract-1 fixtures
+# (Contract1FixtureGenerationTest), so the kit inputs cannot drift from the
+# plugin's real marshaller.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: JDK ${{ matrix.jdk }} — build + test + conformance kit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jdk: [23, 25]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+
+      - name: Install opa (>= 1.0)
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.6.0
+
+      - name: Build + run the full Java test suite
+        run: mvn -B test
+
+      - name: Conformance kit — self-test (validators vs broken fixtures)
+        working-directory: policy-conformance-kit
+        run: ./run.sh
+
+      - name: Conformance kit — safe example (default MODE)
+        working-directory: policy-conformance-kit
+        run: ./run.sh examples/safe
+
+      - name: Conformance kit — passthrough example (MODE=passthrough)
+        working-directory: policy-conformance-kit
+        run: MODE=passthrough ./run.sh examples/passthrough
+
+      - name: Determinism scan (D4) — example policies
+        working-directory: policy-conformance-kit
+        run: ./scan.sh examples/safe examples/passthrough
+
+      - name: Build the conformance-cli gate jar and run it against the safe example
+        run: |
+          mvn -B package -DskipTests
+          java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
+            --policy-dir policy-conformance-kit/examples/safe --mode safe

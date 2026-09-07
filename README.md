@@ -64,7 +64,7 @@ opa.policy.column-masks.path=/v1/data/trino/column_masks
 opa.policy.filter.path=/v1/data/trino/filter
 
 # SQL mode: must match what your policies emit (see "Execution modes" below)
-# opa.sql.mode=passthrough
+# opa.sql.mode=safe
 # opa.sql.max-in-clause-size=1000
 
 # Security (optional)
@@ -73,6 +73,31 @@ opa.policy.filter.path=/v1/data/trino/filter
 # opa.client.tls.truststore.path=/etc/trino/opa-truststore.p12
 # opa.client.tls.truststore.password=file:///etc/trino/opa-truststore.pass  (file:// only)
 ```
+
+### Deployment kit (Milestone 7)
+
+A ready-to-use deployment kit lives in [`deploy/`](deploy/):
+
+- **`deploy/install.sh`** — builds the plugin + runtime deps and installs them
+  into a coordinator's plugin directory (local or over SSH).
+- **`deploy/access-control.properties.example`** — a commented sample config.
+- **`deploy/UPGRADE-ROLLBACK.md`** — the coordinator upgrade/rollback runbook
+  (snapshot, swap jars, restart, smoke test, rollback).
+- **`deploy/Dockerfile`** — a sample Trino image with the plugin baked in
+  (quick-start only, not a production template).
+
+## Releases
+
+Both artifacts are published together on version tags (`v*`) via GitHub Actions
+(see `.github/workflows/release.yml`):
+
+- `trino-opa-access-control-<v>.jar` — the **unshaded plugin jar** (deploy this).
+- `trino-opa-access-control-<v>-conformance-cli.jar` — the **shaded conformance
+  CLI gate** (never deploy into the plugin directory).
+
+Each release includes SHA-256 checksums and a changelog. Artifacts are currently
+**unsigned** (signing is deferred — see `docs/ROADMAP.md` M7 Q-C); Maven Central
+publishing is deferred until GPG signing lands (Central requires it).
 
 ## Policy contract & execution modes
 
@@ -83,7 +108,7 @@ envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
 
 ### Execution modes
 
-| | **safe mode** (`opa.sql.mode=safe`) | **passthrough mode** (`opa.sql.mode=passthrough`, current default) |
+| | **safe mode** (`opa.sql.mode=safe`, default) | **passthrough mode** (`opa.sql.mode=passthrough`, explicit opt-in) |
 |---|---|---|
 | Row filter / mask result | structured descriptors | raw Trino SQL strings |
 | Who writes SQL | the plugin renders it (strict identifiers, `''`-escaped values, IN-bounded) | the policy — quoting/escaping is **your** responsibility |
@@ -91,9 +116,10 @@ envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
 | Expressiveness | `in` / `eq` / `neq` / `is_null` / `is_not_null` | any single Trino expression (CASE, functions, subqueries over the target) |
 | Mode/policy mismatch | rejected (fail closed) | rejected (fail closed) |
 
-> The default mode is being flipped to **safe** before the first production
-> deployment (decision D6, see `docs/ROADMAP.md`). Until then the plugin
-> default is `passthrough`.
+> **Safe mode is the default** (decision D6, see `docs/ROADMAP.md`). Passthrough
+> remains a fully supported explicit opt-in (`opa.sql.mode=passthrough`) for
+> expressive masks (CASE, subqueries, functions) that descriptors cannot express
+> yet.
 
 ### Example responses (Contract 2)
 
@@ -217,6 +243,8 @@ companion plugin or fork, then wire the reporter per Micrometer's docs.
 | `opa.fail.closed` | `action` (or `DEFAULT_DENY`) | fail-closed count — leading PDP-health indicator |
 | `opa.errors` | `kind=transport\|http_status\|timeout\|malformed\|other` | OPA error counts |
 | `opa.circuitbreaker.state` | — | gauge: 0=CLOSED, 1=OPEN, 2=HALF_OPEN |
+| `opa.cache.size` | `cache=decisions\|volatile\|negative` | gauge: current decision-cache size (D5) |
+| `opa.cache.evictions` | `cache=decisions\|volatile\|negative` | cumulative evictions; the backend derives the eviction rate (D5) |
 
 A rising `opa.fail.closed` or sustained `opa.errors` is your signal that the
 PDP is unhealthy before users notice denials.
@@ -230,9 +258,9 @@ tests run via `mvn test` on every build):
 
 ```bash
 cd policy-conformance-kit
-./run.sh examples/passthrough      # passthrough-mode example: PASS 7/7
-MODE=safe ./run.sh examples/safe   # safe-mode (descriptor) example:  PASS 7/7
-./run.sh /path/to/your/policies    # conformance-test your own policies
+./run.sh examples/safe           # safe-mode (descriptor) example: PASS 7/7 (default mode)
+MODE=passthrough ./run.sh examples/passthrough  # passthrough-mode example: PASS 7/7
+./run.sh /path/to/your/policies  # conformance-test your own policies (default mode: safe)
 ```
 
 Exit 0 = every response your policy produces for the fixture inputs conforms.
@@ -268,4 +296,5 @@ jar (gate) both green → bundle publishable.
 | [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
 | [docs/IMPLEMENTATION-NOTES.md](docs/IMPLEMENTATION-NOTES.md) | pinned versions, assumptions, deviations from the architecture doc |
 | [demo/README.md](demo/README.md) | the demo deployment walkthrough |
+| [deploy/UPGRADE-ROLLBACK.md](deploy/UPGRADE-ROLLBACK.md) | the coordinator upgrade/rollback runbook |
 | [policy-conformance-kit/README.md](policy-conformance-kit/README.md) | policy-authoring harness details |

@@ -42,7 +42,8 @@ public final class ConformanceCli
 {
     // Defaults pinned to the plugin's OpaConfig defaults at implementation time
     // (asserted by ConformanceCliDefaultsTest so they cannot drift silently).
-    public static final String DEFAULT_SQL_MODE = "passthrough";
+    // D6: mirrors OpaConfig's safe default.
+    public static final String DEFAULT_SQL_MODE = "safe";
     public static final int DEFAULT_MAX_IN_CLAUSE_SIZE = 1_000;
     public static final int DEFAULT_SCHEMA_VERSION = 1;
 

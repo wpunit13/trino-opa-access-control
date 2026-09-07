@@ -125,11 +125,11 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `getColumnMask(SystemSecurityContext, CatalogSchemaTableName, String, Type)` | `GET_COLUMN_MASKS` | `column_masks` | OPA + SQL validation |
 | `getColumnMasks(SystemSecurityContext, CatalogSchemaTableName, List<ColumnSchema>)` (batch) | — | — | not implemented (out of scope) |
 
-**SQL modes (../docs/ARCHITECTURE.md §3.4):** `opa.sql.mode=passthrough` (default) accepts
-raw SQL strings and structurally validates them; `opa.sql.mode=safe` accepts only
-structured descriptors (`in`/`eq`/`neq`/`is_null`/`is_not_null`) and the plugin
+**SQL modes (../docs/ARCHITECTURE.md §3.4):** `opa.sql.mode=safe` (default, D6) accepts
+only structured descriptors (`in`/`eq`/`neq`/`is_null`/`is_not_null`) and the plugin
 renders the SQL (strict identifiers, `''` escaping, `opa.sql.max-in-clause-size`
-bounding) — in both modes anything that fails validation denies. Contract 2
+bounding); `opa.sql.mode=passthrough` (explicit opt-in) accepts raw SQL strings and
+structurally validates them — in both modes anything that fails validation denies. Contract 2
 conformance requirements for policy authors are identical for both modes apart
 from the filter/mask payload shape. Conformance can be verified without a
 coordinator via `policy-conformance-kit/run.sh` (see kit README).
@@ -143,3 +143,5 @@ coordinator via `policy-conformance-kit/run.sh` (see kit README).
   - `opa.fail.closed{action}` — fail-closed count (incl. `DEFAULT_DENY`)
   - `opa.errors{kind=transport|http_status|timeout|malformed|other}` — OPA error/5xx/timeout counts
   - `opa.circuitbreaker.state` — gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN)
+  - `opa.cache.size{cache=decisions|volatile|negative}` — gauge: current decision-cache size (D5)
+  - `opa.cache.evictions{cache=decisions|volatile|negative}` — cumulative evictions; backend derives the rate (D5)

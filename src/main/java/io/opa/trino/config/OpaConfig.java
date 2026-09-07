@@ -31,7 +31,9 @@ public class OpaConfig
     private String tlsTruststorePassword;
     private String authToken;
 
-    private String sqlMode = "passthrough";
+    // D6 (ROADMAP.md M7): safe is the default before first production deployment.
+    // Passthrough remains a fully supported explicit opt-in (opa.sql.mode=passthrough).
+    private String sqlMode = "safe";
     private boolean sqlParserEnabled = true;
     private List<String> allowedFunctions = List.of();
     private int maxInClauseSize = 1_000;

@@ -31,14 +31,17 @@ public final class DecisionCache
             decisions = Caffeine.newBuilder()
                     .expireAfterWrite(Duration.ofSeconds(ttlSeconds))
                     .maximumSize(maxSize)
+                    .recordStats()
                     .build();
             volatileDecisions = Caffeine.newBuilder()
                     .expireAfterWrite(Duration.ofSeconds(Math.min(ttlSeconds, 5)))
                     .maximumSize(maxSize)
+                    .recordStats()
                     .build();
             negative = Caffeine.newBuilder()
                     .expireAfterWrite(Duration.ofSeconds(negativeTtlSeconds))
                     .maximumSize(maxSize)
+                    .recordStats()
                     .build();
         }
         else {
@@ -71,6 +74,56 @@ public final class DecisionCache
     {
         if (negative != null) {
             negative.put(key, new NegativeEntry(reason));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // D5 (ROADMAP.md M7): cache size + eviction gauges (§8.4). Caffeine's
+    // estimatedSize() is approximate; evictionCount() is cumulative (the
+    // monitoring backend derives the rate). All return 0 when caching is off.
+    // ------------------------------------------------------------------
+
+    public long decisionsSize()
+    {
+        return decisions == null ? 0 : decisions.estimatedSize();
+    }
+
+    public long volatileDecisionsSize()
+    {
+        return volatileDecisions == null ? 0 : volatileDecisions.estimatedSize();
+    }
+
+    public long negativeSize()
+    {
+        return negative == null ? 0 : negative.estimatedSize();
+    }
+
+    public long decisionsEvictions()
+    {
+        return decisions == null ? 0 : decisions.stats().evictionCount();
+    }
+
+    public long volatileDecisionsEvictions()
+    {
+        return volatileDecisions == null ? 0 : volatileDecisions.stats().evictionCount();
+    }
+
+    public long negativeEvictions()
+    {
+        return negative == null ? 0 : negative.stats().evictionCount();
+    }
+
+    /** Triggers Caffeine maintenance (used by tests and operators to flush pending evictions). */
+    public void cleanUp()
+    {
+        if (decisions != null) {
+            decisions.cleanUp();
+        }
+        if (volatileDecisions != null) {
+            volatileDecisions.cleanUp();
+        }
+        if (negative != null) {
+            negative.cleanUp();
         }
     }
 

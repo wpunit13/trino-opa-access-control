@@ -1,0 +1,89 @@
+# Release engineering (Milestone 7, item 2 — Q-B/Q-C).
+#
+# On a version tag (v*):
+#   - build BOTH artifacts at one version: the unshaded plugin jar and the
+#     shaded conformance-cli jar (M6 shade config in pom.xml);
+#   - run the conformance-cli gate against the safe example as a pre-publish
+#     sanity check;
+#   - compute SHA-256 checksums;
+#   - generate a changelog from git history since the previous tag;
+#   - publish both jars + checksums + changelog to a GitHub Release.
+#
+# Q-C deferred signing: artifacts are published UNSIGNED (checksums only).
+# Maven Central (Q-B) is intentionally NOT wired yet — Central requires GPG
+# signatures, which are deferred to a later milestone (see docs/ROADMAP.md M7).
+# When signing lands, add the OSSRH/Sonatype publish step (and GPG) here.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build + publish release artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # for the changelog (previous tag)
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install opa (>= 1.0)
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.6.0
+
+      - name: Build both jars
+        run: mvn -B package -DskipTests
+
+      - name: Conformance gate — CLI jar vs safe example
+        run: |
+          java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
+            --policy-dir policy-conformance-kit/examples/safe --mode safe
+
+      - name: Compute checksums
+        run: |
+          cd target
+          sha256sum trino-opa-access-control-*.jar > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Generate changelog
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          {
+            echo "## Release ${{ github.ref_name }}"
+            echo ""
+            if [ -n "$PREV" ]; then
+              echo "Changes since $PREV:"
+              echo ""
+              git log --oneline --no-decorate "$PREV..HEAD"
+            else
+              echo "Initial release."
+              echo ""
+              git log --oneline --no-decorate HEAD
+            fi
+          } > /tmp/CHANGELOG.md
+          cat /tmp/CHANGELOG.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: /tmp/CHANGELOG.md
+          files: |
+            target/trino-opa-access-control-*.jar
+            target/SHA256SUMS
+
+      # Maven Central (Q-B) is deferred until GPG signing lands (Q-C). When it
+      # does, add the OSSRH/Sonatype publish profile here (nexus-staging-maven-plugin
+      # + maven-gpg-plugin), publishing the same two artifacts at the same version.
+      # - name: Publish to Maven Central (deferred — requires GPG signing)

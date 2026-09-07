@@ -394,8 +394,9 @@ Milestone 8 (see `ROADMAP.md`).
 
 Emit a **`decision_id`** per SPI call, echoed by OPA and logged by both sides.
 Publish: decision latency (hit/miss), decisions by outcome, fail-closed count
-(leading PDP-health indicator), OPA error kinds, circuit-breaker state. The
-deployer-facing metric table (names, tags, meanings) is in `README.md`
+(leading PDP-health indicator), OPA error kinds, circuit-breaker state, and
+per-cache size/eviction gauges (`opa.cache.size`, `opa.cache.evictions` — D5).
+The deployer-facing metric table (names, tags, meanings) is in `README.md`
 § Observability.
 
 ### 8.5 Security hardening
@@ -434,7 +435,7 @@ opa.client.tls.truststore.path=/etc/trino/opa-truststore.p12
 opa.client.auth.token=file:///etc/trino/opa-token
 
 # SQL validation / mode
-opa.sql.mode=passthrough            # or "safe" (becomes the default per ROADMAP D6)
+opa.sql.mode=safe                # default (D6); or "passthrough" as an explicit opt-in
 opa.sql.parser.enabled=true
 opa.sql.allowed-functions=          # empty = unrestricted
 opa.sql.max-in-clause-size=1000

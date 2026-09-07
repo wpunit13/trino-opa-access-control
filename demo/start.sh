@@ -23,13 +23,21 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 
 echo "== 1/3 building the plugin jar + runtime deps =="
-mvn -q package dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/plugin -DskipTests
+# Start clean: dependency:copy-dependencies does not remove stale jars, and a
+# leftover trino-parser/trino-grammar from an older build would violate the
+# "coordinator provides trino" invariant.
+rm -rf target/plugin
+mvn -q package dependency:copy-dependencies -DincludeScope=runtime \
+    -DexcludeGroupIds=io.trino \
+    -DoutputDirectory=target/plugin -DskipTests
 # dependency:copy-dependencies does not include the project's own artifact — the
 # plugin jar must sit next to its deps in the plugin directory (never the CLI jar).
 ls target/trino-opa-access-control-*.jar | grep -v conformance-cli | xargs -I{} cp {} target/plugin/
 # Trino's plugin classloader is isolated and does NOT provide airlift (config
 # framework) or slf4j-api even though they are provided-scope for us — bundle
-# them, but never trino-spi/trino-parser (coordinator-owned).
+# them, but never trino-spi/trino-parser (coordinator-owned). NOTE:
+# -DincludeScope=runtime also pulls compile-scope deps, so trino-parser
+# (compile-scope) must be excluded via -DexcludeGroupIds=io.trino on BOTH copies.
 mvn -q dependency:copy-dependencies -DincludeScope=provided \
     -DexcludeGroupIds=io.trino \
     -DoutputDirectory=target/plugin -DskipTests

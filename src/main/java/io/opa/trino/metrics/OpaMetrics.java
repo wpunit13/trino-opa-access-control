@@ -24,6 +24,8 @@ public final class OpaMetrics
     public static final String METRIC_DECISIONS = "opa.decisions";
     public static final String METRIC_FAIL_CLOSED = "opa.fail.closed";
     public static final String METRIC_ERRORS = "opa.errors";
+    public static final String METRIC_CACHE_SIZE = "opa.cache.size";
+    public static final String METRIC_CACHE_EVICTIONS = "opa.cache.evictions";
 
     public enum ErrorKind { TRANSPORT, HTTP_STATUS, TIMEOUT, MALFORMED, OTHER }
 
@@ -77,5 +79,24 @@ public final class OpaMetrics
                 .tag("kind", kind.name().toLowerCase(java.util.Locale.ROOT))
                 .register(registry)
                 .increment();
+    }
+
+    /**
+     * D5 (ROADMAP.md M7): registers the decision-cache size gauge and the
+     * cumulative-eviction counter for one cache (decisions / volatile / negative),
+     * closing the last §8.4 gap. Evictions are a cumulative {@code FunctionCounter}
+     * — the monitoring backend derives the rate from it (a plain gauge would be
+     * wrong for a monotonically increasing count).
+     */
+    public void registerCacheGauges(String cacheName, java.util.function.LongSupplier size, java.util.function.LongSupplier evictions)
+    {
+        io.micrometer.core.instrument.Gauge.builder(METRIC_CACHE_SIZE, size, java.util.function.LongSupplier::getAsLong)
+                .description("Decision cache current size")
+                .tag("cache", cacheName)
+                .register(registry);
+        io.micrometer.core.instrument.FunctionCounter.builder(METRIC_CACHE_EVICTIONS, evictions, java.util.function.LongSupplier::getAsLong)
+                .description("Decision cache cumulative evictions (backend derives rate)")
+                .tag("cache", cacheName)
+                .register(registry);
     }
 }

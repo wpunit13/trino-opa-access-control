@@ -163,15 +163,8 @@ emitted by Rego.
 Because OPA-emitted SQL is executed by Trino, the plugin applies structural
 validation before injection. Two modes are supported:
 
-1. **Passthrough mode (default, general):** OPA emits raw SQL. The plugin
-   parses each returned predicate/expression with a SQL parser and **rejects**
-   (fails closed) any expression that:
-   - does not parse as a single Trino expression,
-   - references tables or columns outside the target `resource`, or
-   - calls a function outside a configured allow-list.
-
-2. **Safe mode (recommended for highest assurance):** OPA emits *structured
-   descriptors* instead of raw SQL, and the plugin renders the SQL:
+1. **Safe mode (default, D6):** OPA emits *structured descriptors* instead of
+   raw SQL, and the plugin renders the SQL:
    ```json
    {
      "result": {
@@ -186,6 +179,17 @@ validation before injection. Two modes are supported:
    (`''`); `IN (...)` clauses are bounded by `opa.sql.max-in-clause-size`
    (fail closed). This eliminates raw-SQL injection entirely because policies
    can no longer emit arbitrary SQL; the plugin controls quoting/escaping.
+
+2. **Passthrough mode (explicit opt-in, `opa.sql.mode=passthrough`):** OPA
+   emits raw SQL. The plugin parses each returned predicate/expression with a
+   SQL parser and **rejects** (fails closed) any expression that:
+   - does not parse as a single Trino expression,
+   - references tables or columns outside the target `resource`, or
+   - calls a function outside a configured allow-list.
+
+   Passthrough remains fully supported for expressive masks (CASE, subqueries,
+   functions) that descriptors cannot express yet; it is the policy author's
+   responsibility to quote/escape correctly.
 
 Both modes share the requirement that the OPA response shape be schema-validated
 before use; malformed output fails closed. Rendered SQL also passes through the
