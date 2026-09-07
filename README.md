@@ -1,10 +1,30 @@
 # Trino-OPA Access Control
 
+<p align="center">
+  <img alt="Java" src="https://img.shields.io/badge/Java-23%2B-orange">
+  <img alt="Trino" src="https://img.shields.io/badge/Trino-474-0059B3">
+  <img alt="schema_version" src="https://img.shields.io/badge/schema_version-1-blueviolet">
+  <img alt="resilience" src="https://img.shields.io/badge/resilience-fail--closed-red">
+</p>
+
 A Trino `SystemAccessControl` plugin that delegates authorization, row
 filtering, and column masking to Open Policy Agent (OPA). Every decision is
 made in Rego; the plugin marshals request context, enforces a strict response
 contract, and **fails closed** — any OPA error, malformed response, or invalid
 SQL denies access rather than allowing it.
+
+## Contents
+
+- [Key capabilities](#key-capabilities)
+- [Quickstart](#quickstart)
+- [Releases](#releases)
+- [Policy contract & execution modes](#policy-contract--execution-modes)
+- [Identity & group delegation](#identity--group-delegation)
+- [Operational characteristics](#operational-characteristics)
+- [Testing & verification](#testing--verification)
+- [Documentation index](#documentation-index)
+
+---
 
 ## Key capabilities
 
@@ -16,6 +36,8 @@ SQL denies access rather than allowing it.
 - **Performance** — Caffeine decision cache keyed on the full marshaled input (minus volatile fields)
 - **Auditable** — every decision carries a `decision_id`, echoed to OPA and logged; Micrometer metrics for latency, decisions, fail-closed counts, and breaker state
 - **Transport security** — bearer-token auth and TLS with a PKCS12 truststore
+
+---
 
 ## Quickstart
 
@@ -32,6 +54,9 @@ Walkthrough: [demo/README.md](demo/README.md).
 
 ### Option B — install on a coordinator
 
+<details>
+<summary>Build, install & configure</summary>
+
 Requires JDK 23+ to build (Trino 474 SPI ships Java 23 bytecode).
 
 ```bash
@@ -47,6 +72,7 @@ scp target/plugin/*.jar coordinator:/data/trino/plugin/opa-access-control/
 # 3. Configure etc/access-control.properties (see below) and restart Trino
 ```
 
+> [!NOTE]
 > The plugin classloader is isolated: the plugin directory must contain the
 > plugin jar **and** its runtime dependencies (Jackson, Caffeine, Micrometer,
 > airlift, ...). `dependency:copy-dependencies` handles this; do not add
@@ -74,6 +100,8 @@ opa.policy.filter.path=/v1/data/trino/filter
 # opa.client.tls.truststore.password=file:///etc/trino/opa-truststore.pass  (file:// only)
 ```
 
+</details>
+
 ### Deployment kit (Milestone 7)
 
 A ready-to-use deployment kit lives in [`deploy/`](deploy/):
@@ -85,6 +113,8 @@ A ready-to-use deployment kit lives in [`deploy/`](deploy/):
   (snapshot, swap jars, restart, smoke test, rollback).
 - **`deploy/Dockerfile`** — a sample Trino image with the plugin baked in
   (quick-start only, not a production template).
+
+---
 
 ## Releases
 
@@ -98,6 +128,8 @@ Both artifacts are published together on version tags (`v*`) via GitHub Actions
 Each release includes SHA-256 checksums and a changelog. Artifacts are currently
 **unsigned** (signing is deferred — see `docs/ROADMAP.md` M7 Q-C); Maven Central
 publishing is deferred until GPG signing lands (Central requires it).
+
+---
 
 ## Policy contract & execution modes
 
@@ -116,12 +148,16 @@ envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
 | Expressiveness | `in` / `eq` / `neq` / `is_null` / `is_not_null` | any single Trino expression (CASE, functions, subqueries over the target) |
 | Mode/policy mismatch | rejected (fail closed) | rejected (fail closed) |
 
+> [!IMPORTANT]
 > **Safe mode is the default** (decision D6, see `docs/ROADMAP.md`). Passthrough
 > remains a fully supported explicit opt-in (`opa.sql.mode=passthrough`) for
 > expressive masks (CASE, subqueries, functions) that descriptors cannot express
 > yet.
 
 ### Example responses (Contract 2)
+
+<details>
+<summary>View examples</summary>
 
 ```jsonc
 // allow — boolean (or per-column map, see below)
@@ -139,6 +175,8 @@ envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
 // filter — allow-listed subset of the requested candidates; [] = allow nothing
 {"schema_version": 1, "result": ["finance"]}
 ```
+
+</details>
 
 **Undefined-rule semantics (learn these — they are the plugin's actual behavior):**
 
@@ -160,6 +198,8 @@ Boolean and map responses may be mixed per policy rule.
 For the full request/response contract (what the plugin marshals into `input`,
 all response shapes, and the SQL validation rules), see
 [docs/CONTRACTS.md](docs/CONTRACTS.md) §3.1–3.5.
+
+---
 
 ## Identity & group delegation
 
@@ -184,6 +224,7 @@ Populating the identity is the deploying organization's responsibility:
 - an **OPA data sync** — push user→entitlement mappings into OPA as data
   documents and join `input.identity.user` against them in Rego.
 
+> [!WARNING]
 > **Policy-author warning:** if no group source is shipped, `input.identity.groups`
 > is `[]` — the plugin cannot tell "no groups" from "group source forgot to
 > run". Deny closed on missing claims:
@@ -194,6 +235,8 @@ Populating the identity is the deploying organization's responsibility:
 >     "SOME_ENTITLEMENT" in input.identity.groups
 > }
 > ```
+
+---
 
 ## Operational characteristics
 
@@ -246,8 +289,11 @@ companion plugin or fork, then wire the reporter per Micrometer's docs.
 | `opa.cache.size` | `cache=decisions\|volatile\|negative` | gauge: current decision-cache size (D5) |
 | `opa.cache.evictions` | `cache=decisions\|volatile\|negative` | cumulative evictions; the backend derives the eviction rate (D5) |
 
-A rising `opa.fail.closed` or sustained `opa.errors` is your signal that the
-PDP is unhealthy before users notice denials.
+> [!WARNING]
+> A rising `opa.fail.closed` or sustained `opa.errors` is your signal that the
+> PDP is unhealthy before users notice denials.
+
+---
 
 ## Testing & verification
 
@@ -286,15 +332,15 @@ jar (gate) both green → bundle publishable.
 **3. Demo deployment** — a local OPA + coordinator stack in
 [demo/](demo/README.md) for end-to-end verification in ~10 minutes.
 
+---
+
 ## Documentation index
 
 | Document | Read it for |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the target architecture: components, flows, deployment topologies, resilience model, config reference |
 | [docs/CONTRACTS.md](docs/CONTRACTS.md) | the normative wire contracts (§3.1–§3.5) — what policies must emit and what the plugin sends |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | project status, all decisions (D-items), pending items — the single source of truth for "where is this going" |
 | [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
-| [docs/IMPLEMENTATION-NOTES.md](docs/IMPLEMENTATION-NOTES.md) | pinned versions, assumptions, deviations from the architecture doc |
 | [demo/README.md](demo/README.md) | the demo deployment walkthrough |
 | [deploy/UPGRADE-ROLLBACK.md](deploy/UPGRADE-ROLLBACK.md) | the coordinator upgrade/rollback runbook |
 | [policy-conformance-kit/README.md](policy-conformance-kit/README.md) | policy-authoring harness details |

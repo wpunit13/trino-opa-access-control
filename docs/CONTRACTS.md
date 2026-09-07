@@ -1,5 +1,6 @@
 # Interface Contracts (Normative Reference)
 
+> [!NOTE]
 > **Role of this document.** These are the *normative wire-level interface
 > specs* between the plugin, OPA, and Trino — extracted from the original
 > architecture document (where they were numbered §3.1–§3.5). They are
@@ -17,11 +18,22 @@
 > Architecture (components, flows, deployment) → `ARCHITECTURE.md`.
 > Project status and decisions → `ROADMAP.md`.
 
+## Contents
+
+- [§3. The Generality Contracts](#3-the-generality-contracts)
+- [§3.1 Contract 1: Context Marshaling (Plugin → OPA `input`)](#31-contract-1-context-marshaling-plugin--opa-input)
+- [§3.2 Contract 2: Policy Response Schema (OPA → Plugin)](#32-contract-2-policy-response-schema-opa--plugin)
+- [§3.3 Contract 3: Trino SQL Injection Contract](#33-contract-3-trino-sql-injection-contract)
+- [§3.4 Contract 4: SQL Validation & "Safe Mode" (Defense-in-Depth)](#34-contract-4-sql-validation--safe-mode-defense-in-depth)
+- [§3.5 Contract 5: Schema Versioning](#35-contract-5-schema-versioning)
+
 ## §3. The Generality Contracts
 
 To ensure the plugin remains universal across any organization, domain, or data
 schema, it adheres to decoupled contracts. Each contract is **schema-versioned**
 to permit independent evolution of the plugin and the policies (see §3.5).
+
+---
 
 ### §3.1 Contract 1: Context Marshaling (Plugin → OPA `input`)
 
@@ -76,6 +88,8 @@ Key marshaling rules:
   `catalog_session_properties` are not exposed by `SystemSecurityContext` and
   are marshaled as `[]`/`null`/`{}` (see `docs/IMPLEMENTATION-NOTES.md`);
   policies must not rely on them yet.
+
+---
 
 ### §3.2 Contract 2: Policy Response Schema (OPA → Plugin)
 
@@ -148,15 +162,20 @@ These differ in kind from the boolean `checkCan*` methods: they return a
   `input.resource.columns` and expects OPA to return the allow-listed subset in
   a single round-trip.
 
+---
+
 ### §3.3 Contract 3: Trino SQL Injection Contract
 
 The plugin injects Trino SQL expressions into queries. Any valid Trino SQL
 expression (scalar functions, subqueries, `CASE` statements, regex) can be
 emitted by Rego.
 
+> [!NOTE]
 > **Note on naming:** this contract is **Trino-specific**, not
 > engine-agnostic. Emitted SQL uses Trino functions and syntax. Portability to
 > other engines lives in policy translation, not in the plugin.
+
+---
 
 ### §3.4 Contract 4: SQL Validation & "Safe Mode" (Defense-in-Depth)
 
@@ -194,6 +213,8 @@ validation before injection. Two modes are supported:
 Both modes share the requirement that the OPA response shape be schema-validated
 before use; malformed output fails closed. Rendered SQL also passes through the
 structural validator as defense in depth.
+
+---
 
 ### §3.5 Contract 5: Schema Versioning
 

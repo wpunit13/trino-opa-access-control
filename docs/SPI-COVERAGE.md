@@ -1,12 +1,29 @@
 # SPI Coverage Matrix (Trino 474 `SystemAccessControl`)
 
+> [!NOTE]
 > Status, decisions, and pending items live in `docs/ROADMAP.md` (single source of
 > truth). This file covers only the per-method SPI mapping. Milestone 6 added
 > the conformance CLI gate (`io.opa.trino.cli.ConformanceCli`), which validates
 > the Contract-2 response shapes for every one of these paths against the real
 > parser — no method mapping changed.
 
-Status values:
+## Contents
+
+- [Session / identity](#session--identity)
+- [Catalog](#catalog)
+- [Schema](#schema)
+- [Table / column](#table--column)
+- [View / materialized view](#view--materialized-view)
+- [Privileges / roles](#privileges--roles)
+- [Query lifecycle](#query-lifecycle)
+- [Procedures / functions](#procedures--functions)
+- [Row-level security / masking](#row-level-security--masking)
+- [Observability](#observability-84)
+
+### Status column (legend)
+
+Each row in the tables below is one `SystemAccessControl` method; the right-hand **`Status`** column says how the plugin handles it, using one of three values:
+
 - **OPA** — routed to OPA via the listed `action`; deny when OPA returns false/undefined.
 - **DEFAULT-DENY** — explicitly denied in code (`denyByDefault`), audited with a `decision_id`, **no** OPA call. This is intentional and observable (metric `opa.fail.closed{action="DEFAULT_DENY"}`), never accidental SPI inheritance.
 - **NOT-IN-SPI(474)** — the ../docs/ARCHITECTURE.md §5 row does not exist in the Trino 474 SPI under that name; the closest method is noted.
@@ -22,7 +39,10 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanSetSystemSessionProperty(Identity, QueryId, String)` | `SET_SYSTEM_SESSION_PROPERTY` | OPA |
 | `checkCanSetCatalogSessionProperty(SystemSecurityContext, String, String)` | `SET_CATALOG_SESSION_PROPERTY` | OPA |
 
+> [!NOTE]
 > Marshaling note: this SPI surface provides no caller identity for `checkCanSetUser` (the target user is the subject) and no resource field for principals/properties. The target user / property name / procedure name is carried in `resource.columns` as a documented deviation (proposed future field: `resource.target`).
+
+---
 
 ## Catalog
 
@@ -32,6 +52,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `filterCatalogs(SystemSecurityContext, Set<String>)` | `FILTER_CATALOGS` | OPA (bulk) |
 | `checkCanCreateCatalog(SystemSecurityContext, String)` | — | DEFAULT-DENY |
 | `checkCanDropCatalog(SystemSecurityContext, String)` | — | DEFAULT-DENY |
+
+---
 
 ## Schema
 
@@ -45,6 +67,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `filterSchemas(SystemSecurityContext, String, Set<String>)` | `FILTER_SCHEMAS` | OPA (bulk) |
 | `checkCanShowCreateSchema(SystemSecurityContext, CatalogSchemaName)` | — | DEFAULT-DENY |
 | `checkCanGrantSchemaPrivilege` / `checkCanDenySchemaPrivilege` / `checkCanRevokeSchemaPrivilege` | — | DEFAULT-DENY |
+
+---
 
 ## Table / column
 
@@ -68,6 +92,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanSetTableProperties` / `checkCanSetTableComment` / `checkCanSetViewComment` / `checkCanSetColumnComment` | — | DEFAULT-DENY |
 | `checkCanShowCreateTable` | — | DEFAULT-DENY |
 
+---
+
 ## View / materialized view
 
 | SPI method | action | Status |
@@ -81,6 +107,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanRenameMaterializedView` | `RENAME_MATERIALIZED_VIEW` | OPA |
 | `checkCanSetMaterializedViewProperties` | — | DEFAULT-DENY |
 | `checkCanCreateViewWithSelectFromColumns` | — | NOT-IN-SPI(474) (removed upstream; superseded by `canCreateViewWithExecuteFunction`, which is DEFAULT-DENY) |
+
+---
 
 ## Privileges / roles
 
@@ -96,6 +124,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanShowRoles` / `checkCanShowCurrentRoles` / `checkCanShowRoleGrants` | — | DEFAULT-DENY |
 | `checkCanSetRole` | — | NOT-IN-SPI(474) (no such method in the 474 SPI) |
 
+---
+
 ## Query lifecycle
 
 | SPI method | action | Status |
@@ -105,6 +135,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanKillQueryOwnedBy(Identity, Identity)` | `KILL_QUERY_OWNED_BY` | OPA |
 | `filterViewQueryOwnedBy(Identity, Collection<Identity>)` | — | DEFAULT-DENY (returns empty; SPI default is pass-through/allow-all, so the override is mandatory) |
 | `checkCanReadSystemInformation` / `checkCanWriteSystemInformation` | — | DEFAULT-DENY |
+
+---
 
 ## Procedures / functions
 
@@ -116,6 +148,8 @@ All OPA-routed boolean methods use path `opa.policy.allow.path` (default `/v1/da
 | `checkCanShowFunctions` | — | DEFAULT-DENY |
 | `filterFunctions(SystemSecurityContext, String, Set<SchemaFunctionName>)` | — | DEFAULT-DENY (returns empty = allow nothing) |
 | `checkCanCreateFunction` / `checkCanDropFunction` / `checkCanShowCreateFunction` | — | DEFAULT-DENY |
+
+---
 
 ## Row-level security / masking
 
@@ -133,6 +167,8 @@ structurally validates them — in both modes anything that fails validation den
 conformance requirements for policy authors are identical for both modes apart
 from the filter/mask payload shape. Conformance can be verified without a
 coordinator via `policy-conformance-kit/run.sh` (see kit README).
+
+---
 
 ## Observability (§8.4)
 

@@ -1,5 +1,6 @@
 # Trino-OPA Access Control — Architecture
 
+> [!NOTE]
 > **Snapshot discipline.** This document describes the system **as built**:
 > target state as of **response `schema_version` 1, Trino SPI 474**.
 >
@@ -14,6 +15,20 @@
 > - Per-method SPI mapping → [`SPI-COVERAGE.md`](SPI-COVERAGE.md).
 >   Implementation deviations → [`IMPLEMENTATION-NOTES.md`](IMPLEMENTATION-NOTES.md).
 
+## Contents
+
+- [1. Project Overview & Mission](#1-project-overview--mission)
+- [2. Core Architecture](#2-core-architecture)
+- [3. Interface contracts (summary)](#3-interface-contracts-summary)
+- [4. Policy patterns: hierarchical access control (HBAC)](#4-policy-patterns-hierarchical-access-control-hbac)
+- [5. SystemAccessControl SPI coverage (summary)](#5-systemaccesscontrol-spi-coverage-summary)
+- [6. Performance, scale & caching](#6-performance-scale--caching)
+- [7. Fail-closed security (first-class invariant)](#7-fail-closed-security-first-class-invariant)
+- [8. Operations](#8-operations)
+- [9. Plugin configuration reference](#9-plugin-configuration-reference)
+- [10. Status & evolution](#10-status--evolution)
+- [11. Coexistence with a query-cost proxy (EXPLAIN IO / SQL-text gate)](#11-coexistence-with-a-query-cost-proxy-explain-io--sql-text-gate)
+
 ## 1. Project Overview & Mission
 
 This project provides a generic, highly scalable, and vendor-agnostic
@@ -26,6 +41,7 @@ complex security models — hierarchical inheritance, tenant boundaries, dynamic
 redactions — directly in declarative Rego policies without recompiling or
 redeploying Trino coordinator nodes.
 
+> [!IMPORTANT]
 > **Trust model (read first).** OPA is a **hard trust boundary**. Every
 > authorization decision the plugin enforces originates as OPA output, so a
 > compromised, misconfigured, or buggy policy can silently grant or deny
@@ -37,6 +53,8 @@ redeploying Trino coordinator nodes.
 > This trust model is the single most important invariant in the system.
 > Everything else (caching, contracts, resilience) exists to preserve
 > correctness *without* weakening it.
+
+---
 
 ## 2. Core Architecture
 
@@ -207,6 +225,8 @@ HTTP endpoints speaking the contract.
 | Bundle rollout | one fleet to roll | all sidecars poll the same artifact |
 | Best fit | small/medium fleets, standardization | latency-sensitive, large fleets |
 
+---
+
 ## 3. Interface contracts (summary)
 
 The wire-level contracts are normatively specified in
@@ -223,6 +243,8 @@ there and are cited verbatim in conformance-gate failure messages.
 | §3.3 | SQL injection | emitted SQL is Trino-specific |
 | §3.4 | SQL validation / safe mode | structural validation in both modes; descriptors in safe mode |
 | §3.5 | Schema versioning | unknown version fails closed; additive bumps |
+
+---
 
 ## 4. Policy patterns: hierarchical access control (HBAC)
 
@@ -278,6 +300,8 @@ Correctness rules:
 - **Avoid `sprintf`-built unbounded `IN (...)` lists.** Return structured
   values and let the plugin bound the clause (`opa.sql.max-in-clause-size`).
 
+---
+
 ## 5. SystemAccessControl SPI coverage (summary)
 
 The plugin implements the full `SystemAccessControl` matrix (Trino 474): every
@@ -294,6 +318,8 @@ Notable shapes:
 - `getRowFilters` returns `List<ViewExpression>`; `getColumnMask` returns
   `Optional<ViewExpression>`; both are structurally validated before injection.
 - The `Type` parameter of `getColumnMask` enables type-aware masking.
+
+---
 
 ## 6. Performance, scale & caching
 
@@ -350,6 +376,8 @@ End-to-end authorization should stay within a few milliseconds on the cached
 path: cache hit < 1 ms; co-located OPA round-trip < 0.3 ms (+ policy eval);
 fail-closed fast-fail bounded by `opa.client.timeout-ms`.
 
+---
+
 ## 7. Fail-closed security (first-class invariant)
 
 The plugin **always fails closed**. Concretely, each of these denies the
@@ -362,9 +390,12 @@ operation:
 - SQL that fails structural validation (Contract 4)
 - any `checkCan*` method with no matching OPA rule (explicit default-deny)
 
+> [!WARNING]
 > Fail-closed is a **security property, not an availability convenience**.
 > Operators must provision OPA for high availability (§8.2): a fail-closed
 > system with an unhealthy PDP becomes unavailable — by design.
+
+---
 
 ## 8. Operations
 
@@ -406,6 +437,8 @@ The deployer-facing metric table (names, tags, meanings) is in `README.md`
 - Schema-validate every OPA response (Contract 5).
 - Apply safe mode / SQL validation (Contract 4).
 - Treat OPA and its bundle supply chain as a hard trust boundary (§1).
+
+---
 
 ## 9. Plugin configuration reference
 
@@ -453,6 +486,8 @@ opa.circuit-breaker.failure-threshold=10
 opa.circuit-breaker.open-duration-ms=10000
 ```
 
+---
+
 ## 10. Status & evolution
 
 Where the system goes next — decisions, milestones, and the backlog
@@ -460,6 +495,8 @@ Where the system goes next — decisions, milestones, and the backlog
 audit-logging M8) — is tracked exclusively in [`ROADMAP.md`](ROADMAP.md).
 This document is updated when the *target state* moves, not when work is
 scheduled.
+
+---
 
 ## 11. Coexistence with a query-cost proxy (EXPLAIN IO / SQL-text gate)
 
