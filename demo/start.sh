@@ -57,8 +57,11 @@ docker compose -f demo/docker-compose.yml --profile trino up -d --build
 
 echo "== 3/3 waiting for the coordinator =="
 for i in $(seq 1 60); do
-  if docker compose -f demo/docker-compose.yml exec -T trino \
-      trino --execute "SELECT 1" >/dev/null 2>&1; then
+  # The trino service is profile-gated, so exec needs --profile trino. Probe as
+  # the admin user: the demo policy denies the coordinator identity (no groups),
+  # so a bare "SELECT 1" would fail forever even though the coordinator is up.
+  if docker compose -f demo/docker-compose.yml --profile trino exec -T trino \
+      trino --user admin --execute "SELECT 1" >/dev/null 2>&1; then
     echo ""
     echo "Demo is up."
     echo "  DBeaver : host localhost, port 8080, user admin, no password"

@@ -1,23 +1,25 @@
 # Release engineering (Milestone 7, item 2 — Q-B/Q-C).
 #
-# On a version tag (v*):
-#   - build BOTH artifacts at one version: the unshaded plugin jar and the
+# On a semantic-version tag (vMAJOR.MINOR.PATCH, e.g. v0.1.0):
+#   - set the Maven version from the tag (strip the "v" prefix);
+#   - build BOTH artifacts at that version: the unshaded plugin jar and the
 #     shaded conformance-cli jar (M6 shade config in pom.xml);
 #   - run the conformance-cli gate against the safe example as a pre-publish
 #     sanity check;
-#   - compute SHA-256 checksums;
-#   - generate a changelog from git history since the previous tag;
-#   - publish both jars + checksums + changelog to a GitHub Release.
+#   - compute SHA-256 checksums + generate a changelog from git history;
+#   - publish the two deployable jars + checksums + changelog to a GitHub Release;
+#   - GPG-sign and publish to Maven Central via central-publishing-maven-plugin.
 #
-# Q-C deferred signing: artifacts are published UNSIGNED (checksums only).
-# Maven Central (Q-B) is intentionally NOT wired yet — Central requires GPG
-# signatures, which are deferred to a later milestone (see docs/ROADMAP.md M7).
-# When signing lands, add the OSSRH/Sonatype publish step (and GPG) here.
+# Requires these repository secrets (Settings → Secrets → Actions):
+#   CENTRAL_USERNAME  — Sonatype Central Portal user-token username
+#   CENTRAL_PASSWORD  — Sonatype Central Portal user-token password
+#   GPG_PRIVATE_KEY   — armored private key  (`gpg --armor --export-secret-keys <id>`)
+#   GPG_PASSPHRASE    — passphrase for that key
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
 
 permissions:
   contents: write
@@ -31,11 +33,25 @@ jobs:
         with:
           fetch-depth: 0 # for the changelog (previous tag)
 
-      - name: Set up JDK 25
+      - name: Set up JDK 25 (GPG + Central credentials)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Set version from tag
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          mvn -B versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
 
       - name: Install opa (>= 1.0)
         uses: open-policy-agent/setup-opa@v2
@@ -47,13 +63,14 @@ jobs:
 
       - name: Conformance gate — CLI jar vs safe example
         run: |
-          java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
+          java -jar "target/trino-opa-access-control-${VERSION}-conformance-cli.jar" conformance \
             --policy-dir policy-conformance-kit/examples/safe --mode safe
 
       - name: Compute checksums
         run: |
           cd target
-          sha256sum trino-opa-access-control-*.jar > SHA256SUMS
+          sha256sum "trino-opa-access-control-${VERSION}.jar" \
+                     "trino-opa-access-control-${VERSION}-conformance-cli.jar" > SHA256SUMS
           cat SHA256SUMS
 
       - name: Generate changelog
@@ -80,10 +97,9 @@ jobs:
           tag_name: ${{ github.ref_name }}
           body_path: /tmp/CHANGELOG.md
           files: |
-            target/trino-opa-access-control-*.jar
+            target/trino-opa-access-control-${{ env.VERSION }}.jar
+            target/trino-opa-access-control-${{ env.VERSION }}-conformance-cli.jar
             target/SHA256SUMS
 
-      # Maven Central (Q-B) is deferred until GPG signing lands (Q-C). When it
-      # does, add the OSSRH/Sonatype publish profile here (nexus-staging-maven-plugin
-      # + maven-gpg-plugin), publishing the same two artifacts at the same version.
-      # - name: Publish to Maven Central (deferred — requires GPG signing)
+      - name: Publish to Maven Central
+        run: mvn -B deploy -DskipTests
