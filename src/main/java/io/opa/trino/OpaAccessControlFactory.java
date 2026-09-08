@@ -7,6 +7,8 @@ import io.opa.trino.client.OpaHttpClient;
 import io.opa.trino.client.OpaResponseParser;
 import io.opa.trino.config.OpaConfig;
 import io.opa.trino.marshal.OpaRequestMarshaller;
+import io.opa.trino.metrics.DecisionLogger;
+import io.opa.trino.metrics.OpaMetrics;
 import io.opa.trino.sql.SqlExpressionValidator;
 import io.trino.spi.security.SystemAccessControl;
 import io.trino.spi.security.SystemAccessControlFactory;
@@ -38,10 +40,12 @@ public final class OpaAccessControlFactory
             "opa.client.retry-backoff-ms",
             "opa.client.tls.enabled",
             "opa.client.tls.truststore.path",
+            "opa.client.tls.truststore.password",
             "opa.client.auth.token",
             "opa.sql.mode",
             "opa.sql.parser.enabled",
             "opa.sql.allowed-functions",
+            "opa.sql.max-in-clause-size",
             "opa.cache.enabled",
             "opa.cache.ttl-seconds",
             "opa.cache.max-size",
@@ -70,11 +74,39 @@ public final class OpaAccessControlFactory
         OpaConfig config = configurationFactory.build(OpaConfig.class);
         config.validate();
 
+        io.opa.trino.client.CircuitBreaker circuitBreaker = new io.opa.trino.client.CircuitBreaker(
+                config.getCircuitBreakerFailureThreshold(),
+                config.getCircuitBreakerOpenDurationMs());
+
+        // §8.5 hardening: bearer-token auth (literal or file:// path) and TLS with a
+        // custom truststore. Both are validated/fail-fast in OpaConfig.validate().
+        String bearerToken = config.resolvedAuthToken();
+        javax.net.ssl.SSLContext sslContext = null;
+        if (config.isTlsEnabled()) {
+            try {
+                sslContext = OpaHttpClient.sslContextWithTruststore(
+                        config.getTlsTruststorePath(), config.resolvedTruststorePassword());
+            }
+            catch (Exception e) {
+                throw new IllegalArgumentException("Unable to load opa.client.tls.truststore.path: "
+                        + config.getTlsTruststorePath(), e);
+            }
+        }
         OpaHttpClient client = new OpaHttpClient(
                 config.getEndpointUrl(),
                 config.getTimeoutMs(),
                 config.getRetryMax(),
-                config.getRetryBackoffMs());
+                config.getRetryBackoffMs(),
+                config.isCircuitBreakerEnabled() ? circuitBreaker : null,
+                bearerToken,
+                sslContext);
+        OpaMetrics metrics = OpaMetrics.createDefault();
+        if (config.isCircuitBreakerEnabled()) {
+            // §8.4: expose the breaker state as a gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN).
+            metrics.registry().gauge("opa.circuitbreaker.state",
+                    java.util.List.of(io.micrometer.core.instrument.Tag.of("breaker", "opa")),
+                    circuitBreaker, breaker -> breaker.state().ordinal());
+        }
         OpaResponseParser responseParser = new OpaResponseParser(OpaConfig.SUPPORTED_SCHEMA_VERSION);
         OpaRequestMarshaller marshaller = new OpaRequestMarshaller();
         CacheKeyCalculator cacheKeyCalculator = new CacheKeyCalculator();
@@ -87,6 +119,7 @@ public final class OpaAccessControlFactory
         SqlExpressionValidator sqlValidator = new SqlExpressionValidator(
                 config.isSqlParserEnabled() ? config.getAllowedFunctions() : List.of());
 
-        return new OpaAccessControl(config, client, responseParser, marshaller, cacheKeyCalculator, decisionCache, sqlValidator);
+        return new OpaAccessControl(config, client, responseParser, marshaller, cacheKeyCalculator, decisionCache, sqlValidator,
+                metrics, DecisionLogger.slf4j());
     }
 }

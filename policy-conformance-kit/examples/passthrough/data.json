@@ -1,0 +1,9 @@
+{
+  "access": {
+    "column_allowlist": ["name", "salary"],
+    "schema_allowlist": ["finance"],
+    "entity_scope": {
+      "legal_entity_reader_eu": ["LE_DE_01", "LE_FR_02", "O'Brien Holdings"]
+    }
+  }
+}

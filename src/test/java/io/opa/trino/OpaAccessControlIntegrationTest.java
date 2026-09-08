@@ -46,6 +46,7 @@ class OpaAccessControlIntegrationTest
 
     private WireMockServer opa;
     private OpaAccessControl accessControl;
+    static final java.util.List<String> decisionLog = new java.util.ArrayList<>();
 
     private static SystemSecurityContext context(String user, Set<String> groups)
     {
@@ -60,6 +61,7 @@ class OpaAccessControlIntegrationTest
     {
         opa = new WireMockServer(WireMockConfiguration.options().dynamicPort());
         opa.start();
+        decisionLog.clear();
         accessControl = newAccessControl(opa.port(), 250);
     }
 
@@ -84,7 +86,9 @@ class OpaAccessControlIntegrationTest
                 new OpaRequestMarshaller(),
                 new CacheKeyCalculator(),
                 new DecisionCache(true, 10_000, 30, 2, List.of("source_ip", "catalog_session_properties")),
-                new SqlExpressionValidator(List.of()));
+                new SqlExpressionValidator(List.of()),
+                io.opa.trino.metrics.OpaMetrics.createDefault(),
+                decisionLog::add);
     }
 
     private void stubAllow(String body)
@@ -121,6 +125,9 @@ class OpaAccessControlIntegrationTest
         var requests = opa.findAll(postRequestedFor(urlEqualTo("/v1/data/trino/allow")));
         assertThat(requests).hasSize(1);
         var body = requests.get(0).getBodyAsString();
+        // OPA data-API envelope: the marshaled Contract-1 input must be wrapped
+        // in {"input": ...} — a bare map evaluates with an undefined input.
+        assertThat(body).startsWith("{\"input\":{");
         assertThat(body).contains("\"schema_version\":1");
         assertThat(body).contains("\"action\":\"CREATE_TABLE\"");
         assertThat(body).contains("\"user\":\"alice\"");

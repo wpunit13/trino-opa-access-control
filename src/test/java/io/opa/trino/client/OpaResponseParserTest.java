@@ -82,6 +82,24 @@ class OpaResponseParserTest
         assertThat(parser.parseColumnMask(json("{\"result\": {\"schema_version\": 1, \"result\": null}}"))).isNull();
     }
 
+    // ---- Per-column allow/deny map (§5) ----
+
+    @Test
+    void parsesPerColumnDecisionMap()
+    {
+        Object decision = parser.parseBooleanOrColumnMap(json(
+                "{\"result\": {\"schema_version\": 1, \"result\": {\"ssn\": true, \"salary\": false}}}"));
+        assertThat(decision).isEqualTo(java.util.Map.of("ssn", true, "salary", false));
+    }
+
+    @Test
+    void perColumnMapWithNonBooleanFailsClosed()
+    {
+        assertThatThrownBy(() -> parser.parseBooleanOrColumnMap(json(
+                "{\"result\": {\"schema_version\": 1, \"result\": {\"ssn\": \"yes\"}}}")))
+                .isInstanceOf(OpaResponseException.class);
+    }
+
     // ---- Fail-closed shapes ----
 
     @Test

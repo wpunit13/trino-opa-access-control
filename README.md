@@ -1,39 +1,270 @@
-# Trino-OPA Access Control Plugin
+# Trino-OPA Access Control
 
-A Trino `SystemAccessControl` plugin that delegates authorization, dynamic row
-filtering, and column masking to Open Policy Agent (OPA). See
-[ARCHITECTURE.md](ARCHITECTURE.md) for the design and
-[IMPLEMENTATION-NOTES.md](IMPLEMENTATION-NOTES.md) for the Milestone 1
-implementation report (pinned Trino version, assumptions, deviations).
+A Trino `SystemAccessControl` plugin that delegates authorization, row
+filtering, and column masking to Open Policy Agent (OPA). Every decision is
+made in Rego; the plugin marshals request context, enforces a strict response
+contract, and **fails closed** — any OPA error, malformed response, or invalid
+SQL denies access rather than allowing it.
 
-## Status — Milestone 1
+## Key capabilities
 
-Implemented: config (fail-fast validation), Contract 1 marshaling, OPA HTTP
-client, Contract 2 response parsing + schema-version enforcement, Caffeine
-decision/negative caching with the canonical full-input cache key, structural
-SQL validation before any `ViewExpression` is built, and the SPI methods
-`checkCanSelectFromColumns`, `checkCanCreateTable`, `getRowFilters`,
-`getColumnMask`. All unimplemented SPI methods inherit the SPI default
-(deny/empty). Everything fails closed on any OPA error.
+- **Full SPI coverage** — every Trino `SystemAccessControl` method is either routed to OPA or *explicitly* default-denied (never permissive SPI defaults)
+- **Row filtering & column masking** — OPA-emitted predicates injected as `ViewExpression`s, structurally validated first
+- **Two policy modes** — *safe* (structured descriptors; the plugin renders all SQL) and *passthrough* (raw SQL strings, validated)
+- **Per-column authorization** — allow/deny per requested column in one response
+- **Fail-closed resilience** — bounded retries with jitter, circuit breaker, negative caching
+- **Performance** — Caffeine decision cache keyed on the full marshaled input (minus volatile fields)
+- **Auditable** — every decision carries a `decision_id`, echoed to OPA and logged; Micrometer metrics for latency, decisions, fail-closed counts, and breaker state
+- **Transport security** — bearer-token auth and TLS with a PKCS12 truststore
 
-## Build & test
+## Quickstart
 
+### Option A — 10-minute Docker demo (fastest)
+
+```bash
+git clone <this repo> && cd trino-opa-plugin
+./demo/start.sh
 ```
-JAVA_HOME=<JDK 23+> mvn -q test
+
+Then connect a SQL client (DBeaver) to `localhost:8080` as user `admin` —
+the demo policy allows `tpch.tiny.nation` and denies `tpch.tiny.customer`.
+Walkthrough: [demo/README.md](demo/README.md).
+
+### Option B — install on a coordinator
+
+Requires JDK 23+ to build (Trino 474 SPI ships Java 23 bytecode).
+
+```bash
+# 1. Build: produces the plugin jar AND its runtime dependency jars
+JAVA_HOME=<JDK 23+> mvn clean package -DskipTests
+mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/plugin
+cp target/trino-opa-access-control-*.jar target/plugin/   # never the -conformance-cli jar
+
+# 2. Install: copy ALL jars in target/plugin/ to the coordinator's plugin directory
+ssh coordinator 'mkdir -p /data/trino/plugin/opa-access-control'
+scp target/plugin/*.jar coordinator:/data/trino/plugin/opa-access-control/
+
+# 3. Configure etc/access-control.properties (see below) and restart Trino
 ```
 
-## Usage
+> The plugin classloader is isolated: the plugin directory must contain the
+> plugin jar **and** its runtime dependencies (Jackson, Caffeine, Micrometer,
+> airlift, ...). `dependency:copy-dependencies` handles this; do not add
+> `trino-spi`/`trino-parser` (the coordinator provides them) — see
+> `demo/start.sh` for a working script that gets this right.
 
-1. Copy the built jar to `plugin/opa-access-control/` on the coordinator.
-2. In `etc/access-control.properties`:
+`etc/access-control.properties`:
 
 ```properties
 access-control.name=opa-access-control
-opa.endpoint.url=http://127.0.0.1:8181
+opa.endpoint.url=http://opa:8181
 opa.policy.allow.path=/v1/data/trino/allow
 opa.policy.row-filters.path=/v1/data/trino/row_filters
 opa.policy.column-masks.path=/v1/data/trino/column_masks
+opa.policy.filter.path=/v1/data/trino/filter
+
+# SQL mode: must match what your policies emit (see "Execution modes" below)
+# opa.sql.mode=passthrough
+# opa.sql.max-in-clause-size=1000
+
+# Security (optional)
+# opa.client.auth.token=file:///etc/trino/opa-token          (literal or file://)
+# opa.client.tls.enabled=true
+# opa.client.tls.truststore.path=/etc/trino/opa-truststore.p12
+# opa.client.tls.truststore.password=file:///etc/trino/opa-truststore.pass  (file:// only)
 ```
 
-3. Author Rego policies that return the Contract 2 shapes
-   (`{"schema_version": 1, "result": ...}`); see ARCHITECTURE.md §3.2.
+## Policy contract & execution modes
+
+Policies respond at four data documents (`data.trino.allow`, `data.trino.row_filters`,
+`data.trino.column_masks`, `data.trino.filter`). Every response carries the
+envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
+`schema_version` fails closed**.
+
+### Execution modes
+
+| | **safe mode** (`opa.sql.mode=safe`) | **passthrough mode** (`opa.sql.mode=passthrough`, current default) |
+|---|---|---|
+| Row filter / mask result | structured descriptors | raw Trino SQL strings |
+| Who writes SQL | the plugin renders it (strict identifiers, `''`-escaped values, IN-bounded) | the policy — quoting/escaping is **your** responsibility |
+| Injection risk | none by construction | mitigated by structural validation (fail closed) |
+| Expressiveness | `in` / `eq` / `neq` / `is_null` / `is_not_null` | any single Trino expression (CASE, functions, subqueries over the target) |
+| Mode/policy mismatch | rejected (fail closed) | rejected (fail closed) |
+
+> The default mode is being flipped to **safe** before the first production
+> deployment (decision D6, see `docs/ROADMAP.md`). Until then the plugin
+> default is `passthrough`.
+
+### Example responses (Contract 2)
+
+```jsonc
+// allow — boolean (or per-column map, see below)
+{"schema_version": 1, "result": true}
+
+// row_filters — passthrough mode
+{"schema_version": 1, "result": ["legal_entity_code IN ('LE_DE_01', 'LE_FR_02')"]}
+
+// row_filters — safe mode (descriptor); the plugin renders the SQL
+{"schema_version": 1, "result": [{"op": "in", "column": "legal_entity_code", "values": ["LE_DE_01"]}]}
+
+// column_masks — string (passthrough) / descriptor or null (safe); null = unmasked
+{"schema_version": 1, "result": {"op": "is_null", "column": "ssn"}}
+
+// filter — allow-listed subset of the requested candidates; [] = allow nothing
+{"schema_version": 1, "result": ["finance"]}
+```
+
+**Undefined-rule semantics (learn these — they are the plugin's actual behavior):**
+
+- `allow`: an **undefined rule is a deny** (not an error).
+- `row_filters` / `column_masks` / `filter`: an **undefined rule is an ERROR** → fail
+  closed. Always return a response (`"result": []` / `null` for "no filter"/"unmasked").
+
+### Per-column authorization
+
+For `SELECT_FROM_COLUMNS`, OPA may answer with a single boolean or a per-column
+map — a requested column that is absent or `false` is denied:
+
+```json
+{"schema_version": 1, "result": {"name": true, "salary": true, "ssn": false}}
+```
+
+Boolean and map responses may be mixed per policy rule.
+
+For the full request/response contract (what the plugin marshals into `input`,
+all response shapes, and the SQL validation rules), see
+[docs/CONTRACTS.md](docs/CONTRACTS.md) §3.1–3.5.
+
+## Identity & group delegation
+
+The plugin is **identity-source-agnostic**: it forwards whatever groups and
+roles Trino's `Identity` carries — byte-for-byte, on every decision call. It
+does not resolve groups itself.
+
+```
+Trino Identity Provider (session groups / roles)
+          │
+          ▼
+trino-opa-access-control  (forwards byte-for-byte as input.identity.*)
+          │
+          ▼
+Open Policy Agent  (evaluates policy against bundle/data)
+```
+
+Populating the identity is the deploying organization's responsibility:
+
+- a Trino **`GroupProvider`** backed by your entitlement service, or
+- an **IdP claim** (LDAP groups, JWT/OAuth) surfaced by your authenticator, or
+- an **OPA data sync** — push user→entitlement mappings into OPA as data
+  documents and join `input.identity.user` against them in Rego.
+
+> **Policy-author warning:** if no group source is shipped, `input.identity.groups`
+> is `[]` — the plugin cannot tell "no groups" from "group source forgot to
+> run". Deny closed on missing claims:
+>
+> ```rego
+> allow if {
+>     count(input.identity.groups) > 0
+>     "SOME_ENTITLEMENT" in input.identity.groups
+> }
+> ```
+
+## Operational characteristics
+
+### Cache staleness & revocation propagation
+
+Decisions are cached per coordinator; authorization changes are not
+instantaneous. Bounds with default configuration:
+
+| Change | Effective within | Config property |
+|---|---|---|
+| Policy/bundle change (OPA side) | OPA bundle polling interval + up to **30 s** decision cache | `opa.cache.ttl-seconds=30` |
+| Entitlement/role change via OPA data | same as above | `opa.cache.ttl-seconds=30` |
+| Group/entitlement change via `GroupProvider` | **next session only** — session groups are fixed at login | — (session lifetime) |
+| OPA outage | denials negative-cached for **2 s** | `opa.cache.negative-ttl-seconds=2` |
+
+These are a deliberate planning-latency vs. revocation-speed trade-off. Lower
+the TTLs if your compliance needs demand faster revocation (at the cost of
+more OPA round-trips).
+
+### Resilience guarantees
+
+- **Fail closed, always**: transport error, timeout, non-200, OPA error
+  envelope, malformed JSON, missing/unsupported `schema_version`, wrong result
+  shape, or invalid SQL → `AccessDeniedException`, negative-cached for 2 s
+- **Retry with jitter**: transient failures (transport errors, 5xx) retried
+  `opa.client.retry-max` times with exponential backoff ±50% jitter
+- **Circuit breaker**: CLOSED/OPEN/HALF_OPEN with `opa.circuit-breaker.*`
+  config; while open, calls fail fast instead of hammering a degraded PDP
+
+### Observability
+
+Every decision is correlated end to end by **`decision_id`** (generated per SPI
+call, sent to OPA as `input.decision_id`, logged in the audit line: `decision
+action=<action> decision_id=<uuid> result=allow|deny|fail_closed|default_deny ...`).
+Join plugin logs with OPA decision logs on this field.
+
+Micrometer metrics are registered on a `SimpleMeterRegistry` owned by the
+plugin instance (`io.opa.trino.metrics.OpaMetrics#registry()`). Trino does not
+expose plugin registries automatically — to scrape, hook a
+`PrometheusMeterRegistry`/`JmxMeterRegistry` into that registry from a small
+companion plugin or fork, then wire the reporter per Micrometer's docs.
+
+| Metric | Tags | Meaning |
+|---|---|---|
+| `opa.decision.latency` | `action`, `cache=hit\|miss` | decision latency histogram |
+| `opa.decisions` | `action`, `outcome=allow\|deny`, `cache` | decision + cache hit-ratio counters |
+| `opa.fail.closed` | `action` (or `DEFAULT_DENY`) | fail-closed count — leading PDP-health indicator |
+| `opa.errors` | `kind=transport\|http_status\|timeout\|malformed\|other` | OPA error counts |
+| `opa.circuitbreaker.state` | — | gauge: 0=CLOSED, 1=OPEN, 2=HALF_OPEN |
+
+A rising `opa.fail.closed` or sustained `opa.errors` is your signal that the
+PDP is unhealthy before users notice denials.
+
+## Testing & verification
+
+Two harnesses exist for **policy** authors and deployers (the plugin's own
+tests run via `mvn test` on every build):
+
+**1. Conformance kit — fast authoring loop (pure `opa test`, no Java):**
+
+```bash
+cd policy-conformance-kit
+./run.sh examples/passthrough      # passthrough-mode example: PASS 7/7
+MODE=safe ./run.sh examples/safe   # safe-mode (descriptor) example:  PASS 7/7
+./run.sh /path/to/your/policies    # conformance-test your own policies
+```
+
+Exit 0 = every response your policy produces for the fixture inputs conforms.
+The fixture inputs are **generated by the plugin's own Java tests** (`mvn test`
+refreshes them), so they cannot drift from what the plugin actually sends.
+
+**2. Conformance CLI — the CI gate (real Java parser):**
+
+`mvn package` also produces a self-contained gate jar. It spawns `opa eval`
+against your policy directory and judges responses with the plugin's
+authoritative parser — catching plugin/policy version skew before deployment:
+
+```bash
+java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
+    --policy-dir /path/to/your/policies --mode safe
+```
+
+Exit 0 = bundle publishable; non-zero names the contract clause (§3.2.A–D) and
+the failing fixture; exit 2 = gate could not run (missing `opa`, bad
+invocation). The Rego-repo CI pattern: `opa test` (fast loop) **and** the CLI
+jar (gate) both green → bundle publishable.
+
+**3. Demo deployment** — a local OPA + coordinator stack in
+[demo/](demo/README.md) for end-to-end verification in ~10 minutes.
+
+## Documentation index
+
+| Document | Read it for |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the target architecture: components, flows, deployment topologies, resilience model, config reference |
+| [docs/CONTRACTS.md](docs/CONTRACTS.md) | the normative wire contracts (§3.1–§3.5) — what policies must emit and what the plugin sends |
+| [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
+| [docs/IMPLEMENTATION-NOTES.md](docs/IMPLEMENTATION-NOTES.md) | pinned versions, assumptions, deviations from the architecture doc |
+| [demo/README.md](demo/README.md) | the demo deployment walkthrough |
+| [policy-conformance-kit/README.md](policy-conformance-kit/README.md) | policy-authoring harness details |
