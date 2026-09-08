@@ -38,14 +38,33 @@ echo "-- data.trino.row_filters (row_filters_alice):"
 post row_filters row_filters_alice | python3 -m json.tool
 
 step "3. Fail-closed check via Trino (optional; requires the trino service)"
-if command -v docker >/dev/null 2>&1 && docker compose ps trino 2>/dev/null | grep -q running; then
+# The trino service is profile-gated, so `ps` needs --profile trino. Match the
+# service row by name and require a non-exited status (Compose prints the status
+# in the STATUS column, e.g. "running (healthy)" / "Up 2 minutes").
+if command -v docker >/dev/null 2>&1 \
+    && docker compose --profile trino ps --format json trino 2>/dev/null | grep -q '"State":"running"'; then
   # No GroupProvider is configured in the demo, so the coordinator identity has
   # no groups and the example policy denies everything — this MUST fail.
-  if docker compose exec -T trino trino --execute "SELECT 1" >/dev/null 2>&1; then
+  if docker compose --profile trino exec -T trino trino --execute "SELECT 1" >/dev/null 2>&1; then
     echo "UNEXPECTED: query succeeded — the policy did not deny; check your setup"
     exit 1
   else
     echo "OK: query was denied (access denied to catalog) — plugin is wired and fail-closed"
+  fi
+
+  # Allow path: the demo policy grants admin SELECT on tpch.tiny.nation but
+  # default-denies tpch.tiny.customer. Prove both paths end-to-end.
+  if docker compose --profile trino exec -T trino trino --user admin --execute "SELECT * FROM tpch.tiny.nation" >/dev/null 2>&1; then
+    echo "OK: admin SELECT on tpch.tiny.nation succeeded (allow path)"
+  else
+    echo "UNEXPECTED: admin SELECT on tpch.tiny.nation was denied — the allow path is broken; check the policy"
+    exit 1
+  fi
+  if docker compose --profile trino exec -T trino trino --user admin --execute "SELECT * FROM tpch.tiny.customer" >/dev/null 2>&1; then
+    echo "UNEXPECTED: admin SELECT on tpch.tiny.customer succeeded — the deny path is broken; check the policy"
+    exit 1
+  else
+    echo "OK: admin SELECT on tpch.tiny.customer was denied (deny path)"
   fi
 else
   echo "trino service not running (start with: docker compose --profile trino up -d --build) — skipped"

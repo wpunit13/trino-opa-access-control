@@ -274,7 +274,7 @@ action=<action> decision_id=<uuid> result=allow|deny|fail_closed|default_deny ..
 Join plugin logs with OPA decision logs on this field.
 
 Micrometer metrics are registered on a `SimpleMeterRegistry` owned by the
-plugin instance (`io.opa.trino.metrics.OpaMetrics#registry()`). Trino does not
+plugin instance (`io.github.wpunit13.trino.metrics.OpaMetrics#registry()`). Trino does not
 expose plugin registries automatically — to scrape, hook a
 `PrometheusMeterRegistry`/`JmxMeterRegistry` into that registry from a small
 companion plugin or fork, then wire the reporter per Micrometer's docs.

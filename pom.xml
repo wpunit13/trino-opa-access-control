@@ -4,13 +4,39 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.opa.trino</groupId>
+    <groupId>io.github.wpunit13</groupId>
     <artifactId>trino-opa-access-control</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Trino OPA Access Control Plugin</name>
     <description>SystemAccessControl plugin delegating authorization to Open Policy Agent</description>
+
+    <url>https://github.com/wpunit13/trino-opa-access-control</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>wpunit13</id>
+            <name>Punit Walawalkar</name>
+            <email>wpunit13@gmail.com</email>
+            <url>https://github.com/wpunit13</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/wpunit13/trino-opa-access-control.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/wpunit13/trino-opa-access-control.git</developerConnection>
+        <url>https://github.com/wpunit13/trino-opa-access-control</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -108,7 +134,7 @@
                 <version>3.2.5</version>
             </plugin>
             <!-- Milestone 6: second artifact trino-opa-access-control-<v>-conformance-cli.jar
-                 (classifier conformance-cli), shaded/self-contained, Main-Class io.opa.trino.cli.ConformanceCli.
+                 (classifier conformance-cli), shaded/self-contained, Main-Class io.github.wpunit13.trino.cli.ConformanceCli.
                  One source tree, one version: `mvn package` produces the unshaded plugin jar AND the CLI jar.
                  Trino deps stay provided-scope: trino-spi / airlift are NOT bundled (the CLI never loads
                  them). The ONLY exception is trino-parser (+trino-grammar), bundled because the scope
@@ -127,7 +153,7 @@
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <artifactSet>
                                 <includes>
-                                    <include>io.opa.trino:trino-opa-access-control</include>
+                                    <include>io.github.wpunit13:trino-opa-access-control</include>
                                     <include>com.fasterxml.jackson.core:jackson-databind</include>
                                     <include>com.fasterxml.jackson.core:jackson-core</include>
                                     <include>com.fasterxml.jackson.core:jackson-annotations</include>
@@ -151,7 +177,7 @@
                             </filters>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>io.opa.trino.cli.ConformanceCli</mainClass>
+                                    <mainClass>io.github.wpunit13.trino.cli.ConformanceCli</mainClass>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>

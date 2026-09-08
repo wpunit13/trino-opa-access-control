@@ -35,11 +35,21 @@ mvn -q package dependency:copy-dependencies -DincludeScope=runtime \
 ls target/trino-opa-access-control-*.jar | grep -v conformance-cli | xargs -I{} cp {} target/plugin/
 # Trino's plugin classloader is isolated and does NOT provide airlift (config
 # framework) or slf4j-api even though they are provided-scope for us — bundle
-# them, but never trino-spi/trino-parser (coordinator-owned). NOTE:
+# them, but never trino-spi (coordinator-owned). NOTE:
 # -DincludeScope=runtime also pulls compile-scope deps, so trino-parser
 # (compile-scope) must be excluded via -DexcludeGroupIds=io.trino on BOTH copies.
 mvn -q dependency:copy-dependencies -DincludeScope=provided \
     -DexcludeGroupIds=io.trino \
+    -DoutputDirectory=target/plugin -DskipTests
+
+# The plugin's SqlExpressionValidator (passthrough SQL validation) references
+# trino-parser types at runtime, but the coordinator's plugin classloader does
+# NOT provide trino-parser to plugins (verified: ClassNotFoundException at
+# startup). Bundle trino-parser + trino-grammar + antlr4-runtime explicitly —
+# the same set the shaded conformance-cli jar bundles. trino-spi stays
+# coordinator-owned and is never bundled.
+mvn -q dependency:copy-dependencies \
+    -DincludeArtifactIds=trino-parser,trino-grammar,antlr4-runtime \
     -DoutputDirectory=target/plugin -DskipTests
 
 echo "== 2/3 starting OPA + Trino (first run pulls trinodb/trino:474, ~1 GB) =="

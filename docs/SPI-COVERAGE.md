@@ -3,7 +3,7 @@
 > [!NOTE]
 > Status, decisions, and pending items live in `docs/ROADMAP.md` (single source of
 > truth). This file covers only the per-method SPI mapping. Milestone 6 added
-> the conformance CLI gate (`io.opa.trino.cli.ConformanceCli`), which validates
+> the conformance CLI gate (`io.github.wpunit13.trino.cli.ConformanceCli`), which validates
 > the Contract-2 response shapes for every one of these paths against the real
 > parser — no method mapping changed.
 

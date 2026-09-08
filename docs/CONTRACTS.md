@@ -11,7 +11,7 @@
 >   `DescriptorRenderer` / `SqlExpressionValidator` (Contracts 2–4).
 > - The policy conformance kit (`policy-conformance-kit/conformance_test.rego`)
 >   re-states Contract 2 in Rego as the fast authoring loop.
-> - The conformance CLI jar (`io.opa.trino.cli`) enforces Contracts 2–4 against
+> - The conformance CLI jar (`io.github.wpunit13.trino.cli`) enforces Contracts 2–4 against
 >   the real parser and **names these clause anchors (§3.2.A–D) in its gate
 >   failures** — which is why the §3.x numbering must not change.
 >

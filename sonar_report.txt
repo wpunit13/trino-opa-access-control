@@ -1,0 +1,137 @@
+Found 109 issues in 27 files
+CacheKeyCalculatorTest.java
+Join these multiple assertions subject to one assertion chain.
+ConformanceCli.java
+    Replace generic exceptions with specific library exceptions or a custom exception.
+    Replace this use of System.out by a logger.
+    Replace this use of System.err by a logger.
+    Refactor this method to reduce its Cognitive Complexity from 18 to the 15 allowed.
+ConformanceCliDefaultsTest.java
+    Swap these 2 arguments so they are in the correct order: actual value, expected value.
+    Swap these 2 arguments so they are in the correct order: actual value, expected value.
+ConformanceCliOpaIntegrationTest.java
+Use isZero() instead.
+Use isZero() instead.
+Use isZero() instead.
+ConformanceCliTest.java
+Replace these 3 tests with a single Parameterized one.
+Use isZero() instead.
+DecisionCache.java
+Remove this unused import 'java.util.List'.
+DescriptorRenderer.java
+Use concise character class syntax '\\w' instead of '[A-Za-z0-9_]'.
+DescriptorRendererTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Dockerfile
+This image might run with "root" as the default user. Make sure it is safe here.
+Dockerfile
+This image might run with "root" as the default user. Make sure it is safe here.
+OpaAccessControl.java
+A "NullPointerException" could be thrown; "e" is nullable here.
+Define a constant instead of duplicating this literal "DEFAULT_DENY" 6 times.
+Remove this unused import 'io.opa.trino.client.OpaClientException'.
+Constructor has 9 parameters, which is greater than 7 authorized.
+OpaAccessControlIntegrationTest.java
+Join these multiple assertions subject to one assertion chain.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Remove this use of "Thread.sleep()".
+OpaConfig.java
+Define a constant instead of duplicating this literal "file://" 6 times.
+Refactor this method to reduce its Cognitive Complexity from 37 to the 15 allowed.
+Return an empty array instead of null.
+Refactor your code to get this URI from a customizable parameter.
+Refactor your code to get this URI from a customizable parameter.
+Refactor your code to get this URI from a customizable parameter.
+Refactor your code to get this URI from a customizable parameter.
+OpaConfigTest.java
+Remove this unused private "validProperties" method.
+OpaEvalRunner.java
+Make sure publicly writable directories are used safely here.
+OpaFilterMethodsIntegrationTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Join these multiple assertions subject to one assertion chain.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Remove this unused import 'java.util.Map'.
+OpaHttpClient.java
+Refactor this method to reduce its Cognitive Complexity from 26 to the 15 allowed.
+Reduce the total number of break and continue statements in this loop to use at most one.
+Use "nextLong()" instead.
+Make sure that using this pseudorandom number generator is safe here.
+OpaHttpClientRetryTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+OpaMatrixAndObservabilityTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Replace this lambda with method reference 'Counter::count'.
+Replace this lambda with method reference 'Counter::count'.
+Use assertThat(actual).hasSizeGreaterThanOrEqualTo(expected) instead.
+Use assertThat(actual).hasSize(expected) instead.
+OpaMetrics.java
+Define a constant instead of duplicating this literal "cache" 4 times.
+Define a constant instead of duplicating this literal "action" 3 times.
+Refactor this class declaration to use 'record OpaMetrics(MeterRegistry registry)'.
+OpaResponseParser.java
+Define a constant instead of duplicating this literal "result" 10 times.
+Refactor this method to reduce its Cognitive Complexity from 25 to the 15 allowed.
+Define a constant instead of duplicating this literal "schema_version" 3 times.
+OpaResponseParserTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+OpaSafeModeIntegrationTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+OpaTlsHandshakeIntegrationTest.java
+Remove the declaration of thrown exception 'java.lang.Exception', as it cannot be thrown from method's body.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Remove this unused import 'io.opa.trino.client.OpaClientException'.
+Remove this unused import 'java.util.Set'.
+ResponseJudge.java
+Rename field "name" to prevent any misunderstanding/clash with method "name" defined in superclass "java.lang.Enum".
+Refactor this method to reduce its Cognitive Complexity from 20 to the 15 allowed.
+Remove this redundant block.
+Remove this redundant block.
+SqlExpressionValidator.java
+Merge this if statement with the enclosing one.
+Merge this if statement with the enclosing one.
+Merge this if statement with the enclosing one.
+Remove this unused import 'io.trino.sql.tree.Node'.
+SqlExpressionValidatorTest.java
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
+Refactor the code of the lambda to have only one invocation possibly throwing a runtime exception.
