@@ -227,7 +227,11 @@
                 <executions>
                     <execution>
                         <id>sign-artifacts</id>
-                        <phase>verify</phase>
+                        <!-- Sign only during deploy (publishing). Binding to verify would
+                             make every local `mvn verify` (e.g. a Sonar scan) require a
+                             GPG key. The central-publishing-maven-plugin runs in the
+                             deploy phase and needs the .asc files present, so sign here. -->
+                        <phase>deploy</phase>
                         <goals><goal>sign</goal></goals>
                     </execution>
                 </executions>
