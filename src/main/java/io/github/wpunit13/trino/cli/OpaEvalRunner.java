@@ -95,8 +95,12 @@ public final class OpaEvalRunner
             return;
         }
         try (var stream = Files.walk(root)) {
-            for (Path entry : stream.toList()) {
-                Files.deleteIfExists(entry);
+            // Files.walk yields parents before children (pre-order), so delete in
+            // reverse: children first, then the directory itself. Otherwise the
+            // root is deleted while still non-empty (DirectoryNotEmptyException).
+            List<Path> entries = stream.toList();
+            for (int i = entries.size() - 1; i >= 0; i--) {
+                Files.deleteIfExists(entries.get(i));
             }
         }
     }
