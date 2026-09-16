@@ -1,0 +1,14 @@
+{
+   "components" : [],
+   "effortTotal" : 0,
+   "facets" : [],
+   "issues" : [],
+   "p" : 1,
+   "paging" : {
+      "pageIndex" : 1,
+      "pageSize" : 500,
+      "total" : 0
+   },
+   "ps" : 500,
+   "total" : 0
+}

@@ -1,0 +1,28 @@
+# Trino access-control.properties for the OPA access-control plugin.
+#
+# Copy this to <trino-home>/etc/access-control.properties on the coordinator and
+# restart it. Every opa.* key is validated at startup — an unknown key or an
+# invalid value fails fast (the plugin will not start with a typo'd config).
+access-control.name=opa-access-control
+opa.endpoint.url=http://opa:8181
+
+# Policy data paths (must match your OPA bundle's document layout).
+opa.policy.allow.path=/v1/data/trino/allow
+opa.policy.row-filters.path=/v1/data/trino/row_filters
+opa.policy.column-masks.path=/v1/data/trino/column_masks
+opa.policy.filter.path=/v1/data/trino/filter
+
+# SQL mode: safe (default, D6) or passthrough (explicit opt-in). Must match what
+# your policies emit — a mode/policy mismatch fails closed.
+opa.sql.mode=safe
+opa.sql.max-in-clause-size=1000
+
+# Caching (staleness vs revocation-speed trade-off; see README.md).
+opa.cache.ttl-seconds=30
+opa.cache.negative-ttl-seconds=2
+
+# Security (optional): bearer token and/or TLS to the PDP.
+# opa.client.auth.token=file:///etc/trino/opa-token          (literal or file://)
+# opa.client.tls.enabled=true
+# opa.client.tls.truststore.path=/etc/trino/opa-truststore.p12
+# opa.client.tls.truststore.password=file:///etc/trino/opa-truststore.pass  (file:// only)

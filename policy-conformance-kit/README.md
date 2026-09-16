@@ -3,9 +3,9 @@
 > Project status, decisions, and pending items: see `docs/ROADMAP.md` (single source
 > of truth). This README covers the kit only.
 
-> **Mode note:** the plugin's default SQL mode is being flipped to **safe**
-> (see docs/ROADMAP.md M7/D6). The kit's default `MODE` will follow that change; until
-> the code flip lands, run the kit with `MODE=safe` to test safe-mode policies.
+> **Mode note:** the plugin's default SQL mode is **safe** (see docs/ROADMAP.md
+> M7/D6). The kit's default `MODE` is `safe` to match; run passthrough-mode
+> policies with `MODE=passthrough`.
 
 Regression harness for Rego policies consumed by the trino-opa-access-control
 plugin. It proves your policies produce responses the plugin **accepts** — it
@@ -18,16 +18,16 @@ Pure `opa test` — no Trino, no coordinator, no Java needed.
 
 ```bash
 # prerequisites: opa >= 1.0 on PATH
-./run.sh examples/passthrough     # passthrough-mode policies
-MODE=safe ./run.sh examples/safe  # safe-mode (descriptor) policies
+./run.sh examples/safe            # safe-mode (descriptor) policies — default MODE
+MODE=passthrough ./run.sh examples/passthrough  # passthrough-mode policies
 ./run.sh                          # self-test of the kit's own validators
 ```
 
 Conformance-test YOUR policy directory:
 
 ```bash
-./run.sh /path/to/your/policies            # plugin runs in passthrough mode
-MODE=safe ./run.sh /path/to/your/policies  # plugin runs with opa.sql.mode=safe
+./run.sh /path/to/your/policies            # plugin runs in safe mode (default)
+MODE=passthrough ./run.sh /path/to/your/policies  # plugin runs with opa.sql.mode=passthrough
 ```
 
 Exit code 0 = every response your policy produces for the fixture inputs
@@ -103,6 +103,35 @@ self-tests assert against; `cli-negative/mock_policy.rego` serves those same
 broken responses at the plugin's data paths (selected by `input.decision_id`)
 so the CLI's negative tests exercise the full subprocess path. Never load
 either together with a real policy.
+
+## Determinism contract (D4) — a policy-authoring requirement
+
+Every decision is cached by the plugin, keyed on the full marshaled input minus
+volatile fields. For the cache to be **correct**, a policy must be
+**deterministic**: the same `input` must always produce the same response.
+
+**Non-deterministic builtins break this contract.** If a rule consults the
+clock, the network, an RNG, or runtime introspection, it can return *different*
+results for the *same* cache key — so the cached decision may be stale or
+wrong. The plugin cannot detect this (it only sees well-formed responses), so
+it is the policy author's responsibility to avoid these builtins in
+cache-key-relevant rules:
+
+| Builtin family | Examples | Why it's non-deterministic |
+|---|---|---|
+| `time.*` | `time.now_ns`, `time.parse_ns` | result changes with the clock |
+| `http.send` | `http.send(...)` | network call; result varies |
+| `rand.*` | `rand.intn(...)` | result varies per call |
+| `opa.runtime` | `opa.runtime()` | varies per host/env |
+
+**Scanner:** `./scan.sh <policy-dir>` reports these builtins as **warnings**
+(exit 0 — never a hard failure). A team that genuinely needs time-based rules
+may acknowledge the warnings and accept degraded caching; the scanner exists to
+make the trade-off explicit rather than silent.
+
+> This is a heuristic source scan (grep over `.rego` files), so it can produce
+> false positives (e.g. a comment mentioning `time.now_ns`). Because it is
+> warning-level, that is acceptable — it is a tripwire, not a gate.
 
 ## Limitations (by design)
 
