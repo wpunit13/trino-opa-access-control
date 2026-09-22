@@ -37,6 +37,10 @@ SQL denies access rather than allowing it.
 - **Auditable** — every decision carries a `decision_id`, echoed to OPA and logged; Micrometer metrics for latency, decisions, fail-closed counts, and breaker state
 - **Transport security** — bearer-token auth and TLS with a PKCS12 truststore
 
+> [!TIP]
+> **Why this plugin over Trino's built-in OPA plugin?**
+> Trino includes a built-in OPA access control plugin (`access-control.name=opa`). For a detailed functional and architectural comparison covering decision caching, safe-mode SQL generation, circuit breakers, and CI policy gates, see [docs/COMPARISON.md](docs/COMPARISON.md).
+
 ---
 
 ## Quickstart
@@ -60,10 +64,8 @@ Walkthrough: [demo/README.md](demo/README.md).
 Requires JDK 23+ to build (Trino 474 SPI ships Java 23 bytecode).
 
 ```bash
-# 1. Build: produces the plugin jar AND its runtime dependency jars
-JAVA_HOME=<JDK 23+> mvn clean package -DskipTests
-mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/plugin
-cp target/trino-opa-access-control-*.jar target/plugin/   # never the -conformance-cli jar
+# 1. Build target/plugin/ — the plugin jar plus every jar it needs at runtime
+./deploy/build-plugin-dir.sh          # requires JDK 23+
 
 # 2. Install: copy ALL jars in target/plugin/ to the coordinator's plugin directory
 ssh coordinator 'mkdir -p /data/trino/plugin/opa-access-control'
@@ -75,9 +77,10 @@ scp target/plugin/*.jar coordinator:/data/trino/plugin/opa-access-control/
 > [!NOTE]
 > The plugin classloader is isolated: the plugin directory must contain the
 > plugin jar **and** its runtime dependencies (Jackson, Caffeine, Micrometer,
-> airlift, ...). `dependency:copy-dependencies` handles this; do not add
-> `trino-spi`/`trino-parser` (the coordinator provides them) — see
-> `demo/start.sh` for a working script that gets this right.
+> airlift, slf4j-api). It must also contain `trino-parser`/`trino-grammar`/
+> `antlr4-runtime` — the coordinator does **not** expose `trino-parser` to
+> plugins — but never `trino-spi`, which is coordinator-owned.
+> `deploy/build-plugin-dir.sh` gets this right; don't hand-roll the recipe.
 
 `etc/access-control.properties`:
 
@@ -125,9 +128,21 @@ Both artifacts are published together on version tags (`v*`) via GitHub Actions
 - `trino-opa-access-control-<v>-conformance-cli.jar` — the **shaded conformance
   CLI gate** (never deploy into the plugin directory).
 
-Each release includes SHA-256 checksums and a changelog. Artifacts are currently
-**unsigned** (signing is deferred — see `docs/ROADMAP.md` M7 Q-C); Maven Central
-publishing is deferred until GPG signing lands (Central requires it).
+Each release includes SHA-256 checksums and a changelog. The jars are GPG-signed
+and published to Maven Central (release namespace `io.github.wpunit13`) as well as
+to the GitHub Release:
+
+```xml
+<dependency>
+  <groupId>io.github.wpunit13</groupId>
+  <artifactId>trino-opa-access-control</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+Only the unshaded plugin jar is a runtime dependency. The `conformance-cli`
+classifier is a build-time policy gate — never place it in the Trino plugin
+directory.
 
 ---
 
@@ -324,6 +339,10 @@ java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
     --policy-dir /path/to/your/policies --mode safe
 ```
 
+> Requires **JDK 23+** to run, not just to build: the jar is compiled to Java 23
+> bytecode (matching Trino 474) and bundles `trino-parser`, which is Java 23
+> bytecode too. An older JVM fails with `UnsupportedClassVersionError`.
+
 Exit 0 = bundle publishable; non-zero names the contract clause (§3.2.A–D) and
 the failing fixture; exit 2 = gate could not run (missing `opa`, bad
 invocation). The Rego-repo CI pattern: `opa test` (fast loop) **and** the CLI
@@ -339,8 +358,9 @@ jar (gate) both green → bundle publishable.
 | Document | Read it for |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the target architecture: components, flows, deployment topologies, resilience model, config reference |
+| [docs/COMPARISON.md](docs/COMPARISON.md) | functional comparison vs. Trino's built-in OPA plugin (`access-control.name=opa`) |
 | [docs/CONTRACTS.md](docs/CONTRACTS.md) | the normative wire contracts (§3.1–§3.5) — what policies must emit and what the plugin sends |
 | [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
 | [demo/README.md](demo/README.md) | the demo deployment walkthrough |
 | [deploy/UPGRADE-ROLLBACK.md](deploy/UPGRADE-ROLLBACK.md) | the coordinator upgrade/rollback runbook |
-| [policy-conformance-kit/README.md](policy-conformance-kit/README.md) | policy-authoring harness details |
+| [policy-conformance-kit/README.md](policy-conformance-kit/README.md) | policy-authoring harness details | 

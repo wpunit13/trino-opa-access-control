@@ -15,6 +15,11 @@
 #   CENTRAL_PASSWORD  — Sonatype Central Portal user-token password
 #   GPG_PRIVATE_KEY   — armored private key  (`gpg --armor --export-secret-keys <id>`)
 #   GPG_PASSPHRASE    — passphrase for that key
+#
+# setup-java does NOT export these values: it only writes ~/.m2/settings.xml with
+# ${env.*} placeholders. The variables must be present in the environment of the
+# `mvn deploy` step itself — a step-scoped `env:` on the setup step does not carry
+# over, and Maven would otherwise interpolate the placeholders to nothing.
 name: Release
 
 on:
@@ -29,28 +34,30 @@ jobs:
     name: Build + publish release artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # for the changelog (previous tag)
 
-      - name: Set up JDK 25 (GPG + Central credentials)
-        uses: actions/setup-java@v4
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
           server-id: central
-          server-username: CENTRAL_USERNAME
-          server-password: CENTRAL_PASSWORD
+          server-username-env-var: CENTRAL_USERNAME
+          server-password-env-var: CENTRAL_PASSWORD
+          # v6 imports the key into an isolated keyring and exports GNUPGHOME, and
+          # passes the passphrase through `gpg.passphraseEnvName` — which needs
+          # maven-gpg-plugin >= 3.2.0 (pom.xml pins 3.2.8).
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: GPG_PASSPHRASE
-        env:
-          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
-          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          gpg-passphrase-env-var: GPG_PASSPHRASE
 
       - name: Set version from tag
         run: |
           echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          # Pin jar entry timestamps to the tagged commit so a rebuild of the same
+          # commit produces byte-identical artifacts (reproducible builds).
+          echo "BUILD_TIMESTAMP=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
           mvn -B versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
 
       - name: Install opa (>= 1.0)
@@ -59,7 +66,7 @@ jobs:
           version: 1.6.0
 
       - name: Build both jars
-        run: mvn -B package -DskipTests
+        run: mvn -B package -DskipTests -Dproject.build.outputTimestamp="$BUILD_TIMESTAMP"
 
       - name: Conformance gate — CLI jar vs safe example
         run: |
@@ -102,4 +109,9 @@ jobs:
             target/SHA256SUMS
 
       - name: Publish to Maven Central
-        run: mvn -B deploy -DskipTests
+        run: mvn -B deploy -DskipTests -Dproject.build.outputTimestamp="$BUILD_TIMESTAMP"
+        env:
+          # Read from the ${env.*} placeholders in the settings.xml that setup-java wrote.
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
