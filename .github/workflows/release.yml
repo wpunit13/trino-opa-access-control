@@ -102,7 +102,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
+          # Tags are created from the github.com release form, so a release
+          # carrying hand-written notes already exists for this tag. Append the
+          # generated changelog rather than overwriting those notes.
           body_path: /tmp/CHANGELOG.md
+          append_body: true
           files: |
             target/trino-opa-access-control-${{ env.VERSION }}.jar
             target/trino-opa-access-control-${{ env.VERSION }}-conformance-cli.jar
