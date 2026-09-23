@@ -1,4 +1,4 @@
-# Demo deployment (Milestone 6)
+# Demo deployment
 
 **Explicitly not a production template** — no HA OPA, no TLS, no bearer token,
 default cache settings. It exists so you can run an end-to-end verification of

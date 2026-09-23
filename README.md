@@ -105,7 +105,7 @@ opa.policy.filter.path=/v1/data/trino/filter
 
 </details>
 
-### Deployment kit (Milestone 7)
+### Deployment kit
 
 A ready-to-use deployment kit lives in [`deploy/`](deploy/):
 
@@ -300,8 +300,8 @@ companion plugin or fork, then wire the reporter per Micrometer's docs.
 | `opa.fail.closed` | `action` (or `DEFAULT_DENY`) | fail-closed count — leading PDP-health indicator |
 | `opa.errors` | `kind=transport\|http_status\|timeout\|malformed\|other` | OPA error counts |
 | `opa.circuitbreaker.state` | — | gauge: 0=CLOSED, 1=OPEN, 2=HALF_OPEN |
-| `opa.cache.size` | `cache=decisions\|volatile\|negative` | gauge: current decision-cache size (D5) |
-| `opa.cache.evictions` | `cache=decisions\|volatile\|negative` | cumulative evictions; the backend derives the eviction rate (D5) |
+| `opa.cache.size` | `cache=decisions\|volatile\|negative` | gauge: current decision-cache size |
+| `opa.cache.evictions` | `cache=decisions\|volatile\|negative` | cumulative evictions; the backend derives the eviction rate |
 
 > [!WARNING]
 > A rising `opa.fail.closed` or sustained `opa.errors` is your signal that the

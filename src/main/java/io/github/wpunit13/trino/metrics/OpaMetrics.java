@@ -75,7 +75,7 @@ public record OpaMetrics(MeterRegistry registry)
     }
 
     /**
-     * D5 (ROADMAP.md M7): registers the decision-cache size gauge and the
+     * D5: registers the decision-cache size gauge and the
      * cumulative-eviction counter for one cache (decisions / volatile / negative),
      * closing the last §8.4 gap. Evictions are a cumulative {@code FunctionCounter}
      * — the monitoring backend derives the rate from it (a plain gauge would be

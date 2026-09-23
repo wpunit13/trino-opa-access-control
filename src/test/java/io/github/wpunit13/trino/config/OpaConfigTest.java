@@ -72,7 +72,7 @@ class OpaConfigTest
     @Test
     void sqlModeDefaultsToSafe()
     {
-        // D6 (ROADMAP.md M7): safe is the default before first production deployment.
+        // D6: safe is the default before first production deployment.
         OpaConfig config = new OpaConfig();
         assertThat(config.getSqlMode()).isEqualTo("safe");
     }
