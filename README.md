@@ -164,10 +164,9 @@ envelope `{"schema_version": 1, "result": ...}` — **an unsupported or missing
 | Mode/policy mismatch | rejected (fail closed) | rejected (fail closed) |
 
 > [!IMPORTANT]
-> **Safe mode is the default** (decision D6, see `docs/ROADMAP.md`). Passthrough
-> remains a fully supported explicit opt-in (`opa.sql.mode=passthrough`) for
-> expressive masks (CASE, subqueries, functions) that descriptors cannot express
-> yet.
+> **Safe mode is the default.** Passthrough remains a fully supported explicit
+> opt-in (`opa.sql.mode=passthrough`) for expressive masks (CASE, subqueries,
+> functions) that descriptors cannot express yet.
 
 ### Example responses (Contract 2)
 

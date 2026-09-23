@@ -1,11 +1,11 @@
 # Contract-2 Conformance Kit (for Rego policy authors)
 
-> Project status, decisions, and pending items: see `docs/ROADMAP.md` (single source
-> of truth). This README covers the kit only.
+> This README covers the kit only. Project status and pending items are not
+> published yet — a public roadmap may follow in a future release.
 
-> **Mode note:** the plugin's default SQL mode is **safe** (see docs/ROADMAP.md
-> M7/D6). The kit's default `MODE` is `safe` to match; run passthrough-mode
-> policies with `MODE=passthrough`.
+> **Mode note:** the plugin's default SQL mode is **safe**. The kit's default
+> `MODE` is `safe` to match; run passthrough-mode policies with
+> `MODE=passthrough`.
 
 Regression harness for Rego policies consumed by the trino-opa-access-control
 plugin. It proves your policies produce responses the plugin **accepts** — it

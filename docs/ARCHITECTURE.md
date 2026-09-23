@@ -7,13 +7,12 @@
 > - Normative wire-level interface specs (Contracts 1–5, §3.1–§3.5) →
 >   [`CONTRACTS.md`](CONTRACTS.md) — the clause anchors cited in conformance-gate
 >   failures live there.
-> - Status, decisions (D-items), pending work → [`ROADMAP.md`](ROADMAP.md)
->   (single source of truth; where this document conflicts with ROADMAP or the
->   code, **they win**).
 > - Deployer-facing behavior (config quickstart, staleness bounds, identity
 >   sources) → [`../README.md`](../README.md).
 > - Per-method SPI mapping → [`SPI-COVERAGE.md`](SPI-COVERAGE.md).
->   Implementation deviations → [`IMPLEMENTATION-NOTES.md`](IMPLEMENTATION-NOTES.md).
+>
+> Project status and pending items are not published yet — a public roadmap may
+> follow in a future release.
 
 ## Contents
 
@@ -155,9 +154,8 @@ before deployment, and vice versa (simulable via `--schema-version`).
 
 ### 2.5 Deployment topologies
 
-These are the supported topology patterns (recorded as decisions in
-`ROADMAP.md` § Deployment assumptions). Concrete packaging recipes (k8s
-manifests, sizing, TLS termination) are Milestone-7 scope.
+These are the supported topology patterns. Concrete packaging recipes (k8s
+manifests, sizing, TLS termination) are not included yet.
 
 **Pattern A — central OPA fleet (recommended starting point).** One HA OPA
 deployment serves all coordinators behind a load balancer. Simplest to operate;
@@ -357,8 +355,8 @@ Additional implemented guidance:
 - **Negative caching** with a short TTL so a failing OPA is not hammered.
 - **Determinism contract:** policies must be pure functions of their
   non-volatile `input`. Non-deterministic builtins (`time.*`, `http.send`,
-  `rand.*`, `opa.runtime`) break caching; the kit will carry a warning-level
-  scanner for them (ROADMAP M7/D4).
+  `rand.*`, `opa.runtime`) break caching; the kit carries a warning-level
+  scanner for them (`policy-conformance-kit/scan.sh`).
 
 ### 6.3 Resilience & availability
 
@@ -418,8 +416,8 @@ operation:
 ### 8.3 Audit logging
 
 Log the final applied SQL masks and filters (and the `decision_id`) via Trino
-event listeners for regulatory compliance (GDPR, HIPAA, SOC 2). Scheduled as
-Milestone 8 (see `ROADMAP.md`).
+event listeners for regulatory compliance (GDPR, HIPAA, SOC 2). Not implemented
+yet.
 
 ### 8.4 Observability & decision correlation
 
@@ -490,11 +488,10 @@ opa.circuit-breaker.open-duration-ms=10000
 
 ## 10. Status & evolution
 
-Where the system goes next — decisions, milestones, and the backlog
-(embeddable PDP, batch mask evaluation, mTLS, safe-mode default flip D6,
-audit-logging M8) — is tracked exclusively in [`ROADMAP.md`](ROADMAP.md).
-This document is updated when the *target state* moves, not when work is
-scheduled.
+Planned but not yet implemented: an embeddable PDP, batch mask evaluation, mTLS,
+and audit logging via Trino event listeners. This document is updated when the
+*target state* moves, not when work is scheduled. Project status and pending
+items are not published yet — a public roadmap may follow in a future release.
 
 ---
 

@@ -16,7 +16,6 @@
 >   failures** — which is why the §3.x numbering must not change.
 >
 > Architecture (components, flows, deployment) → `ARCHITECTURE.md`.
-> Project status and decisions → `ROADMAP.md`.
 
 ## Contents
 
@@ -86,8 +85,7 @@ Key marshaling rules:
   keys** (see ARCHITECTURE.md §6.2).
 - **Known Trino 474 gaps:** `client_tags`, `source_ip`, `query_type`, and
   `catalog_session_properties` are not exposed by `SystemSecurityContext` and
-  are marshaled as `[]`/`null`/`{}` (see `docs/IMPLEMENTATION-NOTES.md`);
-  policies must not rely on them yet.
+  are marshaled as `[]`/`null`/`{}`; policies must not rely on them yet.
 
 ---
 
