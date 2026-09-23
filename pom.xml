@@ -40,7 +40,10 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>17</maven.compiler.release>
+        <!-- Trino 474 SPI ships Java 23 bytecode (major 67), so the plugin can only
+             ever run on a Java 23+ coordinator. Target 23 rather than 17 so the
+             artifact does not advertise compatibility it cannot have. -->
+        <maven.compiler.release>23</maven.compiler.release>
         <!-- Pinned Trino SPI version -->
         <trino.version>474</trino.version>
         <airlift.version>295</airlift.version>
@@ -63,11 +66,18 @@
         </dependency>
         <!-- trino-parser is COMPILE scope so the shaded conformance-cli jar can bundle it
              (the CLI drives the real SqlExpressionValidator). The plugin jar is unshaded, so its
-             contents are identical either way — no Trino code is added to the plugin artifact. -->
+             contents are identical either way — no Trino code is added to the plugin artifact.
+
+             It is marked <optional> so it does NOT become a transitive dependency of the
+             published artifact: a consumer of io.github.wpunit13:trino-opa-access-control would
+             otherwise inherit trino-parser + guava + antlr4-runtime. Optional scope only stops
+             transitivity — the shade plugin still bundles it, and `dependency:copy-dependencies
+             -DincludeScope=runtime` still copies it into the Trino plugin directory. -->
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-parser</artifactId>
             <version>${trino.version}</version>
+            <optional>true</optional>
         </dependency>
         <!-- airlift configuration framework used by Trino plugins -->
         <dependency>
@@ -122,6 +132,10 @@
     </dependencies>
 
     <build>
+        <!-- Reproducible builds: the release workflow passes
+             -Dproject.build.outputTimestamp=<tagged commit time>, which pins the entry
+             timestamps of all four jars so a given commit rebuilds byte-for-byte.
+             Left unset for local builds, where maven-archiver uses the build clock. -->
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

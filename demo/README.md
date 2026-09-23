@@ -29,7 +29,7 @@ docker compose -f demo/docker-compose.yml up -d opa
 ./demo/verify.sh
 
 # 4. (Optional) start a local coordinator with the plugin baked in (~5 min first build)
-mvn dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/plugin
+./deploy/build-plugin-dir.sh
 docker compose -f demo/docker-compose.yml --profile trino up -d --build
 
 # 5. Prove policy-driven access control from the CLI (demo bundle: nation

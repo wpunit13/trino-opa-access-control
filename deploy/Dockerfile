@@ -1,18 +1,19 @@
 # Sample Trino coordinator with the OPA access-control plugin baked in.
 # Quick-start only — NOT a production template (no HA OPA, no TLS, no auth).
 #
-# Build from the project root after building the plugin + runtime deps:
+# Build from the project root:
 #
-#   JAVA_HOME=<JDK 23+> mvn package dependency:copy-dependencies \
-#       -DincludeScope=runtime -DoutputDirectory=target/plugin -DskipTests
+#   ./deploy/build-plugin-dir.sh          # builds target/plugin/ (needs JDK 23+)
 #   docker build -f deploy/Dockerfile -t trino-opa:latest .
 #
 # Then run with an OPA endpoint reachable from the container (e.g. docker
 # compose, or --add-host=host.docker.internal:host-gateway for a host OPA).
 FROM trinodb/trino:474
 
-# The plugin jar + its runtime deps (Jackson, Caffeine, Micrometer, airlift).
-# The coordinator provides trino-spi/trino-parser, so they are NOT copied.
+# The plugin jar plus every jar it needs at runtime (Jackson, Caffeine,
+# Micrometer, airlift, slf4j-api, trino-parser). trino-spi is the only thing the
+# coordinator provides. deploy/build-plugin-dir.sh owns this recipe — don't
+# hand-roll it, the plugin dir is easy to get subtly wrong.
 COPY target/plugin/ /usr/lib/trino/plugin/opa-access-control/
 
 # Sample access-control.properties (edit opa.endpoint.url for your PDP).

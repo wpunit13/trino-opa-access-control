@@ -8,7 +8,7 @@ import java.util.List;
  * owns quoting/escaping of) the SQL. Supported ops:
  *
  *   in           values: list of scalars   → column IN ('v1', 'v2', ...)
- *   eq / neq     values: single scalar     → column = 'v' / column <> 'v'
+ *   eq / neq     values: single scalar     → {@code column = 'v'} / {@code column <> 'v'}
  *   is_null / is_not_null   values: none   → column IS NULL / column IS NOT NULL
  */
 public record OpaFilterDescriptor(String op, String column, List<Object> values)

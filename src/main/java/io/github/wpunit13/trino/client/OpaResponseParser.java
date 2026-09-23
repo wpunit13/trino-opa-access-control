@@ -37,7 +37,7 @@ public final class OpaResponseParser
     /**
      * Authorization check with per-column support (§5 note: "single boolean for the
      * whole set, or a per-column allow/deny map"). Returns either a Boolean or a
-     * Map<String, Boolean> (column name → allowed).
+     * {@code Map<String, Boolean>} (column name → allowed).
      */
     public Object parseBooleanOrColumnMap(JsonNode root)
     {

@@ -89,6 +89,10 @@ java -jar trino-opa-access-control-<v>-conformance-cli.jar conformance \
     --policy-dir /path/to/your/policies --mode safe
 ```
 
+> Requires **JDK 23+** to run, not just to build: the jar is compiled to Java 23
+> bytecode (matching Trino 474) and bundles `trino-parser`, which is Java 23
+> bytecode too. An older JVM fails with `UnsupportedClassVersionError`.
+
 It spawns `opa eval` per fixture (OPA is the only Rego interpreter) and judges
 every response with the plugin's `OpaResponseParser` / `DescriptorRenderer` /
 `SqlExpressionValidator`. Exit 0 = bundle publishable; non-zero names the
