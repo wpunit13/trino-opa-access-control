@@ -87,7 +87,7 @@ public final class OpaAccessControl
         this.decisionLogger = decisionLogger;
         this.descriptorRenderer = new DescriptorRenderer(config.getMaxInClauseSize());
 
-        // D5 (ROADMAP.md M7): cache size + eviction gauges per cache (§8.4).
+        // D5: cache size + eviction gauges per cache (§8.4).
         metrics.registerCacheGauges("decisions", decisionCache::decisionsSize, decisionCache::decisionsEvictions);
         metrics.registerCacheGauges("volatile", decisionCache::volatileDecisionsSize, decisionCache::volatileDecisionsEvictions);
         metrics.registerCacheGauges("negative", decisionCache::negativeSize, decisionCache::negativeEvictions);

@@ -179,5 +179,5 @@ coordinator via `policy-conformance-kit/run.sh` (see kit README).
   - `opa.fail.closed{action}` — fail-closed count (incl. `DEFAULT_DENY`)
   - `opa.errors{kind=transport|http_status|timeout|malformed|other}` — OPA error/5xx/timeout counts
   - `opa.circuitbreaker.state` — gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN)
-  - `opa.cache.size{cache=decisions|volatile|negative}` — gauge: current decision-cache size (D5)
-  - `opa.cache.evictions{cache=decisions|volatile|negative}` — cumulative evictions; backend derives the rate (D5)
+  - `opa.cache.size{cache=decisions|volatile|negative}` — gauge: current decision-cache size
+  - `opa.cache.evictions{cache=decisions|volatile|negative}` — cumulative evictions; backend derives the rate

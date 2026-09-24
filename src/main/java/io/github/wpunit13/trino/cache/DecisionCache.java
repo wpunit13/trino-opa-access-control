@@ -77,7 +77,7 @@ public final class DecisionCache
     }
 
     // ------------------------------------------------------------------
-    // D5 (ROADMAP.md M7): cache size + eviction gauges (§8.4). Caffeine's
+    // D5: cache size + eviction gauges (§8.4). Caffeine's
     // estimatedSize() is approximate; evictionCount() is cumulative (the
     // monitoring backend derives the rate). All return 0 when caching is off.
     // ------------------------------------------------------------------

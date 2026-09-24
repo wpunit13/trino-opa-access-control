@@ -466,7 +466,7 @@ opa.client.tls.truststore.path=/etc/trino/opa-truststore.p12
 opa.client.auth.token=file:///etc/trino/opa-token
 
 # SQL validation / mode
-opa.sql.mode=safe                # default (D6); or "passthrough" as an explicit opt-in
+opa.sql.mode=safe                # default; or "passthrough" as an explicit opt-in
 opa.sql.parser.enabled=true
 opa.sql.allowed-functions=          # empty = unrestricted
 opa.sql.max-in-clause-size=1000

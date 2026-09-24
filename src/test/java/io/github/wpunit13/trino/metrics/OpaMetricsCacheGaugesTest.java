@@ -10,7 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * D5 (ROADMAP.md M7): the decision-cache size gauge and cumulative-eviction
+ * D5: the decision-cache size gauge and cumulative-eviction
  * counter registered per cache (decisions / volatile / negative) close the last
  * §8.4 observability gap. Verifies the gauges exist with the right tags and
  * reflect real cache state (size grows on puts; evictions accumulate past the

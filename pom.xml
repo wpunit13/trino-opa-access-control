@@ -147,12 +147,12 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
-            <!-- Milestone 6: second artifact trino-opa-access-control-<v>-conformance-cli.jar
+            <!-- Second artifact trino-opa-access-control-<v>-conformance-cli.jar
                  (classifier conformance-cli), shaded/self-contained, Main-Class io.github.wpunit13.trino.cli.ConformanceCli.
                  One source tree, one version: `mvn package` produces the unshaded plugin jar AND the CLI jar.
                  Trino deps stay provided-scope: trino-spi / airlift are NOT bundled (the CLI never loads
                  them). The ONLY exception is trino-parser (+trino-grammar), bundled because the scope
-                 requires the real SqlExpressionValidator in passthrough mode (see IMPLEMENTATION-NOTES). -->
+                 requires the real SqlExpressionValidator in passthrough mode. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

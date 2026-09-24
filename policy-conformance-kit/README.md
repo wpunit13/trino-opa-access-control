@@ -78,7 +78,7 @@ real request marshaller — they cannot drift from what the plugin sends. Files:
 | `column_masks_ssn` | column mask |
 | `filter_schemas` | bulk filter (candidate list → subset) |
 
-## The CI gate: conformance CLI jar (Milestone 6)
+## The CI gate: conformance CLI jar
 
 This kit is the fast authoring loop (pure `opa test`, Rego re-statement of the
 contract). The **stronger gate** is the plugin's CLI jar, which validates
@@ -108,7 +108,7 @@ broken responses at the plugin's data paths (selected by `input.decision_id`)
 so the CLI's negative tests exercise the full subprocess path. Never load
 either together with a real policy.
 
-## Determinism contract (D4) — a policy-authoring requirement
+## Determinism contract — a policy-authoring requirement
 
 Every decision is cached by the plugin, keyed on the full marshaled input minus
 volatile fields. For the cache to be **correct**, a policy must be
@@ -142,7 +142,7 @@ make the trade-off explicit rather than silent.
 - Shape conformance only. A policy returning perfectly-shaped `allow=true` for
   everyone passes — decision correctness is your responsibility.
 - The kit re-states Contract 2 in Rego; the authoritative implementation is the
-  plugin itself. The Milestone 6 CLI runner (`java -jar ... conformance`)
+  plugin itself. The conformance CLI runner (`java -jar ... conformance`)
   validates against the real Java parser and is the stronger CI gate.
 - Tests target the default plugin paths (`data.trino.*`); if you remapped
   `opa.policy.*.path`, adjust `run.sh`'s document expectations accordingly.
