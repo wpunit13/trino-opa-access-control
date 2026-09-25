@@ -62,3 +62,23 @@ jobs:
           mvn -B package -DskipTests
           java -jar target/trino-opa-access-control-*-conformance-cli.jar conformance \
             --policy-dir policy-conformance-kit/examples/safe --mode safe
+
+  # Version-hygiene merge guard (docs/RELEASING.md Rule 1): main's version is a
+  # permanent dev marker and the release workflow stamps the published version
+  # from the tag, so no PR may change a <version> line. PR-only — a merge or a
+  # direct-to-main commit is not a PR, and the guard compares against the PR's
+  # target branch.
+  version-hygiene:
+    name: version-hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The guard computes the merge base against the PR's target branch.
+          fetch-depth: 0
+
+      - name: Check version hygiene
+        if: github.event_name == 'pull_request'
+        run: bash scripts/check_version_hygiene.sh
+        env:
+          BASE_REF: origin/${{ github.base_ref }}

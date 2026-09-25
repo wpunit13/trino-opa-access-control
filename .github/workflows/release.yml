@@ -1,14 +1,20 @@
-# Release engineering (Milestone 7, item 2 — Q-B/Q-C).
+# Release engineering: tag-stamped publish to Maven Central + GitHub Releases.
 #
-# On a semantic-version tag (vMAJOR.MINOR.PATCH, e.g. v0.1.0):
-#   - set the Maven version from the tag (strip the "v" prefix);
-#   - build BOTH artifacts at that version: the unshaded plugin jar and the
-#     shaded conformance-cli jar (M6 shade config in pom.xml);
-#   - run the conformance-cli gate against the safe example as a pre-publish
-#     sanity check;
-#   - compute SHA-256 checksums + generate a changelog from git history;
-#   - publish the two deployable jars + checksums + changelog to a GitHub Release;
-#   - GPG-sign and publish to Maven Central via central-publishing-maven-plugin.
+# Tag-stamped model (docs/RELEASING.md): **the tag is the only version decision.**
+# The workflow stamps the POM version from the tag *inside the build workspace*
+# (never committed), so main's dev-marker version never changes and there is no
+# post-release bump commit. The published version IS the tag, so the two cannot
+# diverge.
+#
+# The trigger glob `v[0-9]*.[0-9]*.[0-9]*` is deliberately loose, and it DOES
+# match `v0.1.0-rc1`. Central is immutable, so publication is enforced twice:
+# the loose glob here for readability, and a strict regex guard in the `guard`
+# job for correctness. Tags that fail the guard skip (exit 0), not fail.
+#
+# workflow_dispatch is the recovery hatch (docs/RELEASING.md §5): a failed stage
+# can be re-run after a fix lands on main. Re-running the original run would
+# replay the OLD workflow file — the dispatch entry point is what allows a
+# corrected workflow to be used.
 #
 # Requires these repository secrets (Settings → Secrets → Actions):
 #   CENTRAL_USERNAME  — Sonatype Central Portal user-token username
@@ -25,18 +31,79 @@ name: Release
 on:
   push:
     tags: ['v[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version X.Y.Z — must match an existing vX.Y.Z tag on main'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  # Enforces the two rules that make an immutable publish safe (docs/RELEASING.md §4).
+  guard:
+    name: Validate the release tag
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history: the on-main check needs origin/main, and the changelog
+          # step needs the previous tag.
+          fetch-depth: 0
+
+      - id: check
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="$DISPATCH_VERSION"
+          else
+            # Strict numeric guard: the trigger glob also matches `v0.1.0-rc1`,
+            # which must never reach Central. Non-matching tags skip silently.
+            if ! echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Tag $GITHUB_REF_NAME is not a numeric release tag (vX.Y.Z) — skipping."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: invalid version '$VERSION' (expected X.Y.Z)" >&2
+            exit 1
+          fi
+          git rev-parse --verify --quiet "refs/tags/v$VERSION" >/dev/null || {
+            echo "ERROR: tag v$VERSION does not exist" >&2
+            exit 1
+          }
+          # Releases are cut from main only: the tagged commit must be an
+          # ancestor of origin/main. (^{commit} peels annotated tags.)
+          git merge-base --is-ancestor "refs/tags/v$VERSION^{commit}" origin/main || {
+            echo "ERROR: tag v$VERSION does not point at a commit on main — refusing to publish" >&2
+            exit 1
+          }
+
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   release:
     name: Build + publish release artifacts
+    needs: guard
+    if: needs.guard.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # for the changelog (previous tag)
+          # Build the tagged commit, not whatever the triggering ref happens to be
+          # (a workflow_dispatch run's ref is the branch, not the tag).
+          ref: refs/tags/v${{ needs.guard.outputs.version }}
+          fetch-depth: 0
 
       - name: Set up JDK 25
         uses: actions/setup-java@v6
@@ -52,13 +119,15 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase-env-var: GPG_PASSPHRASE
 
-      - name: Set version from tag
+      - name: Stamp the release version from the tag
         run: |
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          VERSION="${{ needs.guard.outputs.version }}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           # Pin jar entry timestamps to the tagged commit so a rebuild of the same
           # commit produces byte-identical artifacts (reproducible builds).
           echo "BUILD_TIMESTAMP=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
-          mvn -B versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
+          # Workspace-only stamp, never committed — docs/RELEASING.md Rule 1.
+          mvn -B versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
 
       - name: Install opa (>= 1.0)
         uses: open-policy-agent/setup-opa@v2
@@ -84,7 +153,7 @@ jobs:
         run: |
           PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           {
-            echo "## Release ${{ github.ref_name }}"
+            echo "## Release v${VERSION}"
             echo ""
             if [ -n "$PREV" ]; then
               echo "Changes since $PREV:"
@@ -101,7 +170,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: v${{ needs.guard.outputs.version }}
           # Tags are created from the github.com release form, so a release
           # carrying hand-written notes already exists for this tag. Append the
           # generated changelog rather than overwriting those notes.
@@ -112,6 +181,9 @@ jobs:
             target/trino-opa-access-control-${{ env.VERSION }}-conformance-cli.jar
             target/SHA256SUMS
 
+      # The first release deploys with autoPublish=false (pom.xml), so this lands
+      # in the Central Portal for manual review. Approve it there, then flip
+      # autoPublish to true in a LATER change — see docs/RELEASING.md §4.
       - name: Publish to Maven Central
         run: mvn -B deploy -DskipTests -Dproject.build.outputTimestamp="$BUILD_TIMESTAMP"
         env:
