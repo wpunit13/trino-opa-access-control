@@ -144,6 +144,10 @@ Only the unshaded plugin jar is a runtime dependency. The `conformance-cli`
 classifier is a build-time policy gate — never place it in the Trino plugin
 directory.
 
+Cutting a release is tag-driven — see [docs/RELEASING.md](docs/RELEASING.md) for
+the runbook. The tag is the only version decision: the workflow stamps the POM
+version from it at build time, and the POM version is never hand-edited.
+
 ---
 
 ## Policy contract & execution modes
@@ -359,6 +363,7 @@ jar (gate) both green → bundle publishable.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the target architecture: components, flows, deployment topologies, resilience model, config reference |
 | [docs/COMPARISON.md](docs/COMPARISON.md) | functional comparison vs. Trino's built-in OPA plugin (`access-control.name=opa`) |
 | [docs/CONTRACTS.md](docs/CONTRACTS.md) | the normative wire contracts (§3.1–§3.5) — what policies must emit and what the plugin sends |
+| [docs/RELEASING.md](docs/RELEASING.md) | the release runbook: tag-stamped versions, the guard, first-release review, recovery |
 | [docs/SPI-COVERAGE.md](docs/SPI-COVERAGE.md) | reference appendix: per-method SPI mapping — check before assuming an operation is policy-controlled |
 | [demo/README.md](demo/README.md) | the demo deployment walkthrough |
 | [deploy/UPGRADE-ROLLBACK.md](deploy/UPGRADE-ROLLBACK.md) | the coordinator upgrade/rollback runbook |

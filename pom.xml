@@ -257,10 +257,19 @@
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>
-                    <!-- CI publishes on a v* tag; auto-publish + wait for publication
-                         so the job succeeds only once the release is actually live. -->
-                    <autoPublish>true</autoPublish>
-                    <waitUntil>published</waitUntil>
+                    <!-- FIRST RELEASE ONLY: deploy with autoPublish=false so the
+                         deployment lands in the Central Portal for manual review,
+                         then approve it there and flip this to true in a LATER
+                         change — never in the change that first publishes
+                         (docs/RELEASING.md §4).
+
+                         waitUntil must be `validated` while autoPublish is false:
+                         `published` would never be reached and the build would hang
+                         (the enum is only uploaded/validated/published). Once
+                         autoPublish is true, switch waitUntil back to `published`
+                         so the job succeeds only when the release is actually live. -->
+                    <autoPublish>false</autoPublish>
+                    <waitUntil>validated</waitUntil>
                 </configuration>
             </plugin>
         </plugins>
